@@ -9,6 +9,10 @@ class UserDetail extends Model
 {
     protected $fillable = [
         'user_id',
+        'opening_balance',
+        'total_purchase',
+        'total_paid',
+        'total_due',
         'phone',
         'date_of_birth',
         'gender',

@@ -41,6 +41,30 @@ class PermissionSeeder extends Seeder
             'pages' => [
                 'pages.view', 'pages.create', 'pages.edit', 'pages.delete',
             ],
+            'products' => [
+                'products.view', 'products.create', 'products.edit', 'products.delete',
+            ],
+            'categories' => [
+                'categories.view', 'categories.create', 'categories.edit', 'categories.delete',
+            ],
+            'brands' => [
+                'brands.view', 'brands.create', 'brands.edit', 'brands.delete',
+            ],
+            'units' => [
+                'units.view', 'units.create', 'units.edit', 'units.delete',
+            ],
+            'inventory' => [
+                'inventory.view', 'inventory.adjust', 'inventory.movements', 'inventory.batches',
+            ],
+            'suppliers' => [
+                'suppliers.view', 'suppliers.create', 'suppliers.edit', 'suppliers.delete',
+            ],
+            'purchases' => [
+                'purchases.view', 'purchases.create', 'purchases.edit', 'purchases.delete', 'purchases.payment',
+            ],
+            'purchase_returns' => [
+                'purchase_returns.view', 'purchase_returns.create',
+            ],
         ];
 
         // Create permissions
@@ -57,6 +81,8 @@ class PermissionSeeder extends Seeder
         $super = Role::firstOrCreate(['name' => 'super-admin', 'guard_name' => $guard]);
         $admin = Role::firstOrCreate(['name' => 'admin', 'guard_name' => $guard]);
         $user = Role::firstOrCreate(['name' => 'user', 'guard_name' => $guard]);
+        $provider = Role::firstOrCreate(['name' => 'provider', 'guard_name' => $guard]);
+        $customer = Role::firstOrCreate(['name' => 'customer', 'guard_name' => $guard]);
 
         // Assign permissions
         $allPerms = Permission::where('guard_name', $guard)->get();
@@ -71,6 +97,14 @@ class PermissionSeeder extends Seeder
             'profile.update',
             'activity.dashboard', 'activity.feed', 'activity.delete',
             'pages.view', 'pages.create', 'pages.edit',
+            'products.view', 'products.create', 'products.edit', 'products.delete',
+            'categories.view', 'categories.create', 'categories.edit', 'categories.delete',
+            'brands.view', 'brands.create', 'brands.edit', 'brands.delete',
+            'units.view', 'units.create', 'units.edit', 'units.delete',
+            'inventory.view', 'inventory.adjust', 'inventory.movements', 'inventory.batches',
+            'suppliers.view', 'suppliers.create', 'suppliers.edit',
+            'purchases.view', 'purchases.create', 'purchases.edit', 'purchases.payment',
+            'purchase_returns.view', 'purchase_returns.create',
         ])->get();
         $admin->syncPermissions($adminPerms);
 

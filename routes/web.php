@@ -17,6 +17,26 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/app/translate/', 'app::translate')->name('app.translate');
     Route::livewire('/app/pages/', 'app::pages')->name('app.pages');
 
+    // Product Management
+    Route::livewire('/app/products/', 'app::products')->name('app.products');
+    Route::livewire('/app/products/create', 'app::product-form')->name('app.products.create');
+    Route::livewire('/app/products/{product}/edit', 'app::product-form')->name('app.products.edit');
+    Route::livewire('/app/categories/', 'app::categories')->name('app.categories');
+    Route::livewire('/app/brands/', 'app::brands')->name('app.brands');
+    Route::livewire('/app/units/', 'app::units')->name('app.units');
+
+    // Inventory Management
+    Route::livewire('/app/inventory/', 'app::inventory')->name('app.inventory');
+    Route::livewire('/app/stock-adjustments/', 'app::stock-adjustments')->name('app.stock-adjustments');
+    Route::livewire('/app/stock-movements/', 'app::stock-movements')->name('app.stock-movements');
+
+    // Purchase Management
+    Route::livewire('/app/suppliers/', 'app::suppliers')->name('app.suppliers');
+    Route::livewire('/app/purchases/', 'app::purchases')->name('app.purchases');
+    Route::livewire('/app/purchases/create', 'app::purchase-form')->name('app.purchases.create');
+    Route::livewire('/app/purchases/{purchase}/edit', 'app::purchase-form')->name('app.purchases.edit');
+    Route::livewire('/app/purchase-returns/', 'app::purchase-returns')->name('app.purchase-returns');
+
     Route::livewire('/app/notifications/', 'app::notifications')->name('app.notifications');
 
     Route::livewire('/app/activities/feed/', 'app::activity-feed')->name('app.activity.feed');
