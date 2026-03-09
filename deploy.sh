@@ -3,7 +3,7 @@
 cd /var/www/aminhub || exit
 
 echo "Pulling latest code..."
-git pull origin main
+git pull origin
 
 echo "Installing composer dependencies..."
 composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
