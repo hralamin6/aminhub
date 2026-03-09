@@ -1,3 +1,3 @@
 <div>
-     {{ __('test') }} - {{ __('Marcus Aurelius') }}
+     {{ __('hey???') }}
 </div>
