@@ -26,5 +26,5 @@ php artisan optimize
 echo "Fixing permissions..."
 chown -R www-data:www-data /var/www/aminhub
 chmod -R 775 storage bootstrap/cache
-
+chmod +x deploy.sh
 echo "Deployment finished!"
