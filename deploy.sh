@@ -3,6 +3,7 @@
 cd /var/www/aminhub || exit
 
 echo "Pulling latest code..."
+git reset --hard
 git pull origin
 
 echo "Installing composer dependencies..."
