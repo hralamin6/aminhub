@@ -1,73 +1,70 @@
 <?php
 
-use App\Models\GuestSubscription;
+use App\Models\Brand;
+use App\Models\Category;
+use App\Models\Product;
+use App\Models\ProductVariant;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Title;
 use Livewire\Component;
-use NotificationChannels\WebPush\WebPushMessage;
-use NotificationChannels\WebPush\WebPushChannel;
-use Minishlink\WebPush\WebPush;
-use Minishlink\WebPush\Subscription;
+use Mary\Traits\Toast;
 
 new
-#[Layout('layouts.auth')]
+#[Title('Home')]
+#[Layout('layouts.shop')]
 class extends Component
 {
-    private function sendGuestNotifications()
+    use Toast;
+
+    #[Computed]
+    public function featuredProducts()
     {
-        $guestSubscriptions = GuestSubscription::all();
+        return Product::active()->ecommerce()->featured()
+            ->with(['media', 'variants' => fn ($q) => $q->where('is_active', true)->orderBy('retail_price'), 'category', 'brand', 'baseUnit'])
+            ->take(8)
+            ->get();
+    }
 
-        if ($guestSubscriptions->isEmpty()) {
-            return;
-        }
+    #[Computed]
+    public function newArrivals()
+    {
+        return Product::active()->ecommerce()
+            ->with(['media', 'variants' => fn ($q) => $q->where('is_active', true)->orderBy('retail_price'), 'category', 'brand'])
+            ->latest()
+            ->take(8)
+            ->get();
+    }
 
-        // Initialize WebPush with VAPID keys
-        $webPush = new WebPush([
-            'VAPID' => [
-                'subject' => config('app.url'),
-                'publicKey' => config('webpush.vapid.public_key'),
-                'privateKey' => config('webpush.vapid.private_key'),
-            ],
-        ]);
+    #[Computed]
+    public function categories()
+    {
+        return Category::where('is_active', true)
+            ->whereNull('parent_id')
+            ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
+            ->orderBy('sort_order')
+            ->get();
+    }
 
-        foreach ($guestSubscriptions as $guestSub) {
-            try {
-                // Create subscription object
-                $subscription = Subscription::create([
-                    'endpoint' => $guestSub->endpoint,
-                    'publicKey' => $guestSub->public_key,
-                    'authToken' => $guestSub->auth_token,
-                    'contentEncoding' => $guestSub->content_encoding,
-                ]);
+    #[Computed]
+    public function brands()
+    {
+        return Brand::where('is_active', true)
+            ->withCount(['products' => fn ($q) => $q->where('is_active', true)])
+            ->having('products_count', '>', 0)
+            ->orderBy('name')
+            ->take(12)
+            ->get();
+    }
 
-                // Create notification payload
-                $payload = json_encode([
-                    'title' => 'Welcome Guest!',
-                    'body' => 'This is a test notification for guest users',
-                    'icon' => '/logo.png',
-                    'badge' => '/logo.png',
-                    'data' => [
-                        'url' => '/',
-                        'timestamp' => now()->toISOString(),
-                    ],
-                ]);
+    public function addToCart(int $variantId): void
+    {
+        $variant = ProductVariant::with('product.productUnits')->findOrFail($variantId);
+        $saleUnit = $variant->product->productUnits->where('is_sale_unit', true)->first();
+        $defaultUnitId = $saleUnit?->unit_id ?? $variant->product->productUnits->first()?->unit_id ?? 1;
 
-                // Send notification
-                $result = $webPush->sendOneNotification($subscription, $payload);
-
-                if (!$result->isSuccess()) {
-                    \Log::error('Failed to send push notification to guest: ' . $result->getReason());
-                }
-
-            } catch (\Exception $e) {
-                \Log::error('Error sending push notification to guest: ' . $e->getMessage());
-            }
-        }
-
-        // Flush any remaining notifications
-        foreach ($webPush->flush() as $report) {
-            if (!$report->isSuccess()) {
-                \Log::error('Push notification failed: ' . $report->getReason());
-            }
-        }
+        app(\App\Services\CartService::class)->add($variantId, 1, $defaultUnitId);
+        $this->dispatch('cart-updated');
+        $this->success(__('Added to cart'), position: 'toast-bottom');
     }
 };

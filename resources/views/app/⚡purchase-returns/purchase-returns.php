@@ -40,11 +40,11 @@ class extends Component
     public function returns()
     {
         return PurchaseReturn::query()
-            ->with(['purchase.supplier', 'creator'])
+            ->with(['purchase.provider', 'creator'])
             ->withCount('items')
             ->when($this->search, fn ($q, $s) => $q->where('return_number', 'like', "%{$s}%")
                 ->orWhereHas('purchase', fn ($pq) => $pq->where('invoice_number', 'like', "%{$s}%")
-                    ->orWhereHas('supplier', fn ($sq) => $sq->where('name', 'like', "%{$s}%"))))
+                    ->orWhereHas('provider', fn ($sq) => $sq->where('name', 'like', "%{$s}%"))))
             ->latest()
             ->paginate($this->perPage);
     }
@@ -53,11 +53,11 @@ class extends Component
     public function purchaseOptions()
     {
         return Purchase::where('status', 'received')
-            ->with('supplier')
+            ->with('provider')
             ->latest()
             ->limit(50)
             ->get()
-            ->map(fn ($p) => ['id' => $p->id, 'name' => "{$p->invoice_number} — {$p->supplier->name}"])
+            ->map(fn ($p) => ['id' => $p->id, 'name' => "{$p->invoice_number} — {$p->provider->name}"])
             ->toArray();
     }
 

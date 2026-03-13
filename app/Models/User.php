@@ -230,4 +230,46 @@ class User extends Authenticatable implements HasMedia, MustVerifyEmail
     {
         return $this->hasMany(AiConversation::class);
     }
+
+    /**
+     * Scope a query to only include active users.
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereHas('detail', function ($q) {
+            $q->where('is_active', true);
+        });
+    }
+
+    /**
+     * Get the user's purchases (as a provider).
+     */
+    public function purchases()
+    {
+        return $this->hasMany(\App\Models\Purchase::class, 'provider_id');
+    }
+
+    /**
+     * Get the user's sales (as a customer).
+     */
+    public function sales()
+    {
+        return $this->hasMany(\App\Models\Sale::class, 'customer_id');
+    }
+
+    /**
+     * Get the user's online orders (as a customer).
+     */
+    public function orders()
+    {
+        return $this->hasMany(\App\Models\Order::class, 'customer_id');
+    }
+
+    /**
+     * Get the user's saved addresses.
+     */
+    public function addresses()
+    {
+        return $this->hasMany(\App\Models\UserAddress::class);
+    }
 }

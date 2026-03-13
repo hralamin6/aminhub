@@ -1,5 +1,5 @@
 <div class="space-y-6">
-  <x-header :title="__('Purchase Returns')" :subtitle="__('Return items to suppliers — creates reverse stock movements.')" separator>
+  <x-header :title="__('Purchase Returns')" :subtitle="__('Return items to providers — creates reverse stock movements.')" separator>
     <x-slot:actions>
       <x-button class="btn-ghost btn-sm" icon="o-arrow-left" link="/app/purchases" wire:navigate>{{ __('Purchases') }}</x-button>
       @can('purchase_returns.create')
@@ -10,7 +10,7 @@
 
   <x-card>
     <div class="mb-4">
-      <x-input wire:model.live.debounce.400ms="search" icon="o-magnifying-glass" :placeholder="__('Return #, invoice, supplier...')" clearable />
+      <x-input wire:model.live.debounce.400ms="search" icon="o-magnifying-glass" :placeholder="__('Return #, invoice, provider...')" clearable />
     </div>
 
     <div class="overflow-x-auto">
@@ -20,7 +20,7 @@
             <th>{{ __('Return #') }}</th>
             <th>{{ __('Date') }}</th>
             <th>{{ __('Purchase Invoice') }}</th>
-            <th>{{ __('Supplier') }}</th>
+            <th>{{ __('Provider') }}</th>
             <th class="text-right">{{ __('Items') }}</th>
             <th class="text-right">{{ __('Amount') }}</th>
             <th class="text-center">{{ __('Status') }}</th>
@@ -33,7 +33,7 @@
               <td><code class="text-xs bg-base-200 px-1.5 py-0.5 rounded font-mono">{{ $ret->return_number }}</code></td>
               <td class="text-sm">{{ $ret->return_date->format('d M Y') }}</td>
               <td><code class="text-xs">{{ $ret->purchase->invoice_number }}</code></td>
-              <td class="font-medium text-sm">{{ $ret->purchase->supplier->name }}</td>
+              <td class="font-medium text-sm">{{ $ret->purchase->provider->name }}</td>
               <td class="text-right font-mono">{{ $ret->items_count }}</td>
               <td class="text-right font-mono font-semibold text-error">৳{{ number_format($ret->total_amount, 2) }}</td>
               <td class="text-center"><span class="badge {{ $ret->status_badge }} badge-sm">{{ ucfirst($ret->status) }}</span></td>

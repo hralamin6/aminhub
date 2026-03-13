@@ -1,6 +1,6 @@
 <div class="space-y-6">
   <x-header :title="$purchaseId ? __('Edit Purchase') : __('New Purchase')"
-    :subtitle="$purchaseId ? __('Update a draft purchase invoice.') : __('Create a new purchase invoice from a supplier.')" separator>
+    :subtitle="$purchaseId ? __('Update a draft purchase invoice.') : __('Create a new purchase invoice from a provider.')" separator>
     <x-slot:actions>
       <x-button class="btn-ghost btn-sm" icon="o-arrow-left" link="/app/purchases" wire:navigate>{{ __('Back') }}</x-button>
     </x-slot:actions>
@@ -9,8 +9,8 @@
   {{-- Header Section --}}
   <x-card :title="__('Purchase Information')">
     <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-      <x-select :label="__('Supplier')" wire:model="supplier_id" :options="$this->supplierOptions"
-        icon="o-building-office" required placeholder="{{ __('Select supplier') }}" placeholder-value="" />
+      <x-select :label="__('Provider')" wire:model="provider_id" :options="$this->providerOptions"
+        icon="o-building-office" required placeholder="{{ __('Select provider') }}" placeholder-value="" />
       <x-input :label="__('Purchase Date')" wire:model="purchase_date" type="date" required />
       <x-textarea :label="__('Note')" wire:model="note" rows="1" />
     </div>

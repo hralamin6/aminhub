@@ -1,5 +1,5 @@
 <div class="space-y-6">
-  <x-header :title="__('Purchases')" :subtitle="__('Purchase invoices — track orders, payments, and supplier dues.')" separator>
+  <x-header :title="__('Purchases')" :subtitle="__('Purchase invoices — track orders, payments, and provider dues.')" separator>
     <x-slot:actions>
       @can('purchases.create')
         <x-button class="btn-primary" icon="o-plus" link="/app/purchases/create" wire:navigate>{{ __('New Purchase') }}</x-button>
@@ -42,8 +42,8 @@
   <x-card>
     {{-- Filters --}}
     <div class="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4">
-      <x-input wire:model.live.debounce.400ms="search" icon="o-magnifying-glass" :placeholder="__('Invoice #, supplier...')" clearable />
-      <x-select wire:model.live="supplierFilter" :options="$this->supplierOptions" icon="o-building-office" />
+      <x-input wire:model.live.debounce.400ms="search" icon="o-magnifying-glass" :placeholder="__('Invoice #, provider...')" clearable />
+      <x-select wire:model.live="providerFilter" :options="$this->providerOptions" icon="o-building-office" />
       <x-select wire:model.live="paymentFilter" :options="[
         ['id' => null, 'name' => __('All Payments')],
         ['id' => 'unpaid', 'name' => __('Unpaid')],
@@ -62,7 +62,7 @@
       </div>
     </div>
 
-    @if($search || $supplierFilter || $paymentFilter || $statusFilter || $dateFrom || $dateTo)
+    @if($search || $providerFilter || $paymentFilter || $statusFilter || $dateFrom || $dateTo)
       <div class="mb-3">
         <x-button class="btn-ghost btn-xs" icon="o-x-mark" wire:click="clearFilters">{{ __('Clear filters') }}</x-button>
       </div>
@@ -75,7 +75,7 @@
           <tr class="bg-base-200/50">
             <th>{{ __('Invoice') }}</th>
             <th>{{ __('Date') }}</th>
-            <th>{{ __('Supplier') }}</th>
+            <th>{{ __('Provider') }}</th>
             <th class="text-right">{{ __('Items') }}</th>
             <th class="text-right">{{ __('Total') }}</th>
             <th class="text-right">{{ __('Paid') }}</th>
@@ -90,7 +90,7 @@
             <tr class="hover:bg-base-200/30 transition-colors group">
               <td><code class="text-xs bg-base-200 px-1.5 py-0.5 rounded font-mono">{{ $purchase->invoice_number }}</code></td>
               <td class="text-sm">{{ $purchase->purchase_date->format('d M Y') }}</td>
-              <td class="font-medium text-sm">{{ $purchase->supplier->name }}</td>
+              <td class="font-medium text-sm">{{ $purchase->provider->name }}</td>
               <td class="text-right font-mono text-sm">{{ $purchase->items_count }}</td>
               <td class="text-right font-mono font-semibold">৳{{ number_format($purchase->grand_total, 0) }}</td>
               <td class="text-right font-mono text-success">৳{{ number_format($purchase->paid_amount, 0) }}</td>
@@ -172,7 +172,7 @@
       <div class="space-y-4">
         <div class="grid grid-cols-3 gap-4 text-sm">
           <div><p class="text-xs text-base-content/50">{{ __('Invoice') }}</p><code>{{ $dp->invoice_number }}</code></div>
-          <div><p class="text-xs text-base-content/50">{{ __('Supplier') }}</p><p class="font-medium">{{ $dp->supplier->name }}</p></div>
+          <div><p class="text-xs text-base-content/50">{{ __('Provider') }}</p><p class="font-medium">{{ $dp->provider->name }}</p></div>
           <div><p class="text-xs text-base-content/50">{{ __('Date') }}</p><p>{{ $dp->purchase_date->format('d M Y') }}</p></div>
         </div>
 

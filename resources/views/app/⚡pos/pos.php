@@ -1,13 +1,15 @@
 <?php
 
 use App\Models\Category;
-use App\Models\Customer;
+use App\Models\User;
 use App\Models\ProductVariant;
+use App\Models\ProductBatch;
 use App\Models\Sale;
 use App\Models\SaleItem;
 use App\Models\StockMovement;
 use App\Models\Unit;
 use App\Services\UnitConversionService;
+use App\Services\InventoryService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
@@ -17,7 +19,7 @@ use Mary\Traits\Toast;
 
 new
 #[Title('POS')]
-#[Layout('layouts.pos')]
+#[Layout('layouts.app')]
 class extends Component
 {
     use Toast;
@@ -33,11 +35,15 @@ class extends Component
     public string $customer_name = '';
     public string $customer_phone = '';
     public ?int $customer_id = null;
+    public string $customer_search = '';
     public string $discount_type = 'flat';
     public float $discount_value = 0;
     public string $payment_method = 'cash';
     public float $paid_amount = 0;
     public string $note = '';
+
+    // Mobile
+    public bool $showMobileCart = false;
 
     // Held sales
     public array $heldSales = [];
@@ -82,6 +88,44 @@ class extends Component
     }
 
     #[Computed]
+    public function customers()
+    {
+        if (strlen($this->customer_search) < 2) return [];
+
+        return User::whereHas('detail')
+            ->where(fn ($q) => $q->where('name', 'like', "%{$this->customer_search}%")
+                ->orWhereHas('detail', fn ($dq) => $dq->where('phone', 'like', "%{$this->customer_search}%")))
+            ->limit(10)
+            ->get()
+            ->map(fn ($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'phone' => $u->detail->phone ?? '',
+                'display' => $u->name . ($u->detail->phone ? ' - ' . $u->detail->phone : '')
+            ])
+            ->toArray();
+    }
+
+    public function selectCustomer(int $customerId): void
+    {
+        $customer = User::with('detail')->find($customerId);
+        if ($customer) {
+            $this->customer_id = $customer->id;
+            $this->customer_name = $customer->name;
+            $this->customer_phone = $customer->detail->phone ?? '';
+            $this->customer_search = '';
+        }
+    }
+
+    public function clearCustomer(): void
+    {
+        $this->customer_id = null;
+        $this->customer_name = '';
+        $this->customer_phone = '';
+        $this->customer_search = '';
+    }
+
+    #[Computed]
     public function subtotal(): float
     {
         return collect($this->cart)->sum(fn ($item) => (float) $item['quantity'] * (float) $item['unit_price'] - (float) $item['discount']);
@@ -118,41 +162,166 @@ class extends Component
 
     public function addToCart(int $variantId): void
     {
-        $variant = ProductVariant::with('product')->findOrFail($variantId);
+        $variant = ProductVariant::with(['product.productUnits.unit', 'product.baseUnit'])->findOrFail($variantId);
 
         // Check if already in cart
         foreach ($this->cart as $i => $item) {
             if ($item['variant_id'] == $variantId) {
-                $this->cart[$i]['quantity']++;
+                $this->cart[$i]['quantity'] = round($this->cart[$i]['quantity'] + 1, 3);
                 return;
             }
         }
 
-        // Get default unit
-        $defaultUnit = null;
-        if ($variant->product->productUnits) {
-            $saleUnit = $variant->product->productUnits->where('is_sale_unit', true)->first();
-            $defaultUnit = $saleUnit ?? $variant->product->productUnits->first();
+        $product = $variant->product;
+
+        // Default to base unit and base (variant) price
+        $baseUnit = $product->baseUnit;
+        $unitId = $baseUnit?->id;
+        $unitName = $baseUnit?->short_name ?? $baseUnit?->name ?? 'pc';
+        $unitPrice = (float) $variant->retail_price; // This is the base price per base unit
+        $conversionRate = 1;
+
+        // Get available units - always include base unit first, then product units
+        $availableUnits = [];
+        $productUnits = $product->productUnits;
+
+        // Always add base unit as first option
+        if ($baseUnit) {
+            $availableUnits[] = [
+                'unit_id' => $baseUnit->id,
+                'unit_name' => $baseUnit->short_name ?? $baseUnit->name,
+                'conversion_rate' => 1,
+                'is_sale_unit' => true,
+            ];
+        }
+
+        // Add product units (excluding base unit to avoid duplicates)
+        if ($productUnits && $productUnits->isNotEmpty()) {
+            foreach ($productUnits as $pu) {
+                $unit = $pu->unit;
+                // Skip if this is the base unit (already added)
+                if ($unit && $unit->id !== $baseUnit?->id) {
+                    $availableUnits[] = [
+                        'unit_id' => $pu->unit_id,
+                        'unit_name' => $unit->short_name ?? $unit->name,
+                        'conversion_rate' => (float) $pu->conversion_rate,
+                        'is_sale_unit' => $pu->is_sale_unit,
+                    ];
+                }
+            }
         }
 
         $this->cart[] = [
             'variant_id' => $variant->id,
-            'name' => $variant->product->name,
+            'name' => $product->name,
             'variant_name' => $variant->name,
             'sku' => $variant->sku,
             'quantity' => 1,
-            'unit_id' => $defaultUnit?->unit_id ?? null,
-            'unit_name' => $defaultUnit?->unit?->short_name ?? 'pc',
-            'unit_price' => (float) $variant->retail_price,
+            'unit_id' => $unitId,
+            'unit_name' => $unitName,
+            'unit_price' => $unitPrice,
+            'base_price' => $unitPrice,
+            'conversion_rate' => $conversionRate,
+            'available_units' => $availableUnits,
+            'batch_id' => null,
+            'batch_number' => null,
+            'available_batches' => $this->getAvailableBatches($variant->id),
             'discount' => 0,
             'available' => $variant->available_stock,
         ];
     }
 
+    public function switchUnit(int $index, int $newUnitId): void
+    {
+        if (!isset($this->cart[$index])) return;
+
+        $item = &$this->cart[$index];
+        $availableUnits = $item['available_units'] ?? [];
+
+        // Find the selected unit
+        $selectedUnit = null;
+        foreach ($availableUnits as $unit) {
+            if ($unit['unit_id'] == $newUnitId) {
+                $selectedUnit = $unit;
+                break;
+            }
+        }
+
+        if (!$selectedUnit) return;
+
+        $oldConversionRate = (float) ($item['conversion_rate'] ?? 1);
+        $newConversionRate = (float) $selectedUnit['conversion_rate'];
+        $basePrice = (float) ($item['base_price'] ?? $item['unit_price'] * $oldConversionRate);
+
+        $item['unit_id'] = $newUnitId;
+        $item['unit_name'] = $selectedUnit['unit_name'];
+        $item['conversion_rate'] = $newConversionRate;
+        $item['unit_price'] = round($basePrice * $newConversionRate, 3);
+        $item['base_price'] = $basePrice;
+    }
+
+    public function getAvailableBatches(int $variantId): array
+    {
+        return ProductBatch::where('product_variant_id', $variantId)
+            ->whereHas('stockMovements', fn($q) => $q->where('direction', 'in'))
+            ->withSum(['stockMovements as total_in' => fn($q) => $q->where('direction', 'in')], 'quantity')
+            ->withSum(['stockMovements as total_out' => fn($q) => $q->where('direction', 'out')], 'quantity')
+            ->orderBy('created_at')
+            ->get()
+            ->map(fn($b) => [
+                'id' => $b->id,
+                'batch_number' => $b->batch_number,
+                'current_stock' => (float) ($b->total_in - $b->total_out),
+                'expiry_date' => $b->expiry_date?->format('d M Y'),
+                'is_expired' => $b->is_expired,
+            ])
+            ->filter(fn($b) => $b['current_stock'] > 0)
+            ->values()
+            ->toArray();
+    }
+
+    public function selectBatch(int $index, ?int $batchId): void
+    {
+        if (!isset($this->cart[$index])) return;
+
+        $item = &$this->cart[$index];
+
+        if ($batchId === null || $batchId === 0) {
+            $item['batch_id'] = null;
+            $item['batch_number'] = null;
+            return;
+        }
+
+        $batch = ProductBatch::find($batchId);
+        if ($batch) {
+            $item['batch_id'] = $batch->id;
+            $item['batch_number'] = $batch->batch_number;
+        }
+    }
+
     public function updateQty(int $index, float $qty): void
     {
         if (isset($this->cart[$index])) {
-            $this->cart[$index]['quantity'] = max(0.01, $qty);
+            $this->cart[$index]['quantity'] = round(max(0.001, $qty), 3);
+        }
+    }
+
+    public function updatePrice(int $index, float $price): void
+    {
+        if (isset($this->cart[$index])) {
+            $this->cart[$index]['unit_price'] = round(max(0, $price), 3);
+        }
+    }
+
+    public function updateTotalPrice(int $index, float $totalPrice): void
+    {
+        if (isset($this->cart[$index])) {
+            $unitPrice = (float) $this->cart[$index]['unit_price'];
+            if ($unitPrice > 0) {
+                // Calculate quantity based on total price and unit price
+                $newQty = $totalPrice / $unitPrice;
+                $this->cart[$index]['quantity'] = round(max(0.001, $newQty), 3);
+            }
         }
     }
 
@@ -182,10 +351,12 @@ class extends Component
         $this->customer_name = '';
         $this->customer_phone = '';
         $this->customer_id = null;
+        $this->customer_search = '';
         $this->discount_type = 'flat';
         $this->discount_value = 0;
         $this->paid_amount = 0;
         $this->note = '';
+        $this->showMobileCart = false;
     }
 
     // ─── Hold/Resume ─────────────────────────────────
@@ -253,10 +424,19 @@ class extends Component
             // Resolve or create customer
             $customerId = $this->customer_id;
             if (! $customerId && $this->customer_phone) {
-                $customer = Customer::firstOrCreate(
-                    ['phone' => $this->customer_phone],
-                    ['name' => $this->customer_name ?: __('Walk-in'), 'type' => 'walk_in']
-                );
+                $customer = User::whereHas('detail', fn($q) => $q->where('phone', $this->customer_phone))->first();
+                if (! $customer) {
+                    $customer = User::create([
+                        'name' => $this->customer_name ?: __('Walk-in'),
+                        'email' => $this->customer_phone . '@walkin.local',
+                        'password' => bcrypt('password')
+                    ]);
+                    $customer->assignRole('customer');
+                    $customer->detail()->create([
+                        'phone' => $this->customer_phone,
+                        'is_active' => true,
+                    ]);
+                }
                 $customerId = $customer->id;
             }
 
@@ -322,26 +502,42 @@ class extends Component
                     'subtotal' => $lineTotal,
                 ]);
 
-                // Stock movement — sale (out)
-                StockMovement::create([
-                    'product_variant_id' => $item['variant_id'],
-                    'type' => 'sale',
-                    'direction' => 'out',
-                    'quantity' => $baseQty,
-                    'unit_id' => $item['unit_id'] ?? null,
-                    'original_quantity' => $qty,
-                    'reference_type' => 'sale',
-                    'reference_id' => $sale->id,
-                    'created_by' => auth()->id(),
-                ]);
+                // Stock movement — sale (out) with batch deduction
+                // Use selected batch if specified, otherwise use FIFO
+                $inventory = app(InventoryService::class);
+                
+                if (!empty($item['batch_id'])) {
+                    // Deduct from specific batch
+                    StockMovement::create([
+                        'product_variant_id' => $item['variant_id'],
+                        'batch_id' => $item['batch_id'],
+                        'type' => 'sale',
+                        'direction' => 'out',
+                        'quantity' => $baseQty,
+                        'unit_id' => $item['unit_id'] ?? null,
+                        'original_quantity' => $qty,
+                        'reference_type' => 'sale',
+                        'reference_id' => $sale->id,
+                        'created_by' => auth()->id(),
+                    ]);
+                } else {
+                    // Use FIFO batch deduction
+                    $inventory->deductSaleStockWithBatches(
+                        $item['variant_id'],
+                        $qty,
+                        $item['unit_id'] ?? Unit::first()?->id ?? 1,
+                        $saleItem->id,
+                        $sale->id
+                    );
+                }
             }
 
             // Update customer totals
             if ($customerId) {
-                $customer = Customer::find($customerId);
-                if ($customer) {
-                    $customer->increment('total_purchase', $grandTotal);
-                    $customer->increment('total_due', $dueAmt);
+                $customer = User::with('detail')->find($customerId);
+                if ($customer && $customer->detail) {
+                    $customer->detail->increment('total_purchase', $grandTotal);
+                    $customer->detail->increment('total_due', $dueAmt);
                 }
             }
 

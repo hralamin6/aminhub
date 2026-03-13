@@ -112,10 +112,10 @@ class extends Component
 
             // Reverse customer totals
             if ($sale->customer_id) {
-                $customer = $sale->customer;
-                if ($customer) {
-                    $customer->decrement('total_purchase', $sale->grand_total);
-                    $customer->decrement('total_due', $sale->due_amount);
+                $customer = \App\Models\User::with('detail')->find($sale->customer_id);
+                if ($customer && $customer->detail) {
+                    $customer->detail->decrement('total_purchase', $sale->grand_total);
+                    $customer->detail->decrement('total_due', $sale->due_amount);
                 }
             }
 

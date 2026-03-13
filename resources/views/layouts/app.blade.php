@@ -68,6 +68,11 @@
               @can('inventory.view')
                 <x-menu-item :title="__('Stock Overview')" icon="o-chart-bar" :link="route('app.inventory')" route="app.inventory" />
               @endcan
+              @can('inventory.view')
+                <x-menu-item :title="__('Batch Stock')" icon="o-cube" :link="route('app.batch-stock')" route="app.batch-stock" />
+                <x-menu-item :title="__('Expiry Alerts')" icon="o-exclamation-triangle" :link="route('app.expiry-alerts')" route="app.expiry-alerts" />
+                <x-menu-item :title="__('Batch Profitability')" icon="o-currency-dollar" :link="route('app.batch-profitability')" route="app.batch-profitability" />
+              @endcan
               @can('inventory.adjust')
                 <x-menu-item :title="__('Adjustments')" icon="o-adjustments-horizontal" :link="route('app.stock-adjustments')" route="app.stock-adjustments" />
               @endcan
@@ -80,7 +85,7 @@
             @canany(['suppliers.view', 'purchases.view', 'purchase_returns.view'])
             <x-menu-sub :title="__('Purchase')" icon="o-shopping-cart">
               @can('suppliers.view')
-                <x-menu-item :title="__('Suppliers')" icon="o-building-office" :link="route('app.suppliers')" route="app.suppliers" />
+                <x-menu-item :title="__('Providers')" icon="o-building-office" :link="route('app.providers')" route="app.providers" />
               @endcan
               @can('purchases.view')
                 <x-menu-item :title="__('Purchases')" icon="o-clipboard-document-list" :link="route('app.purchases')" route="app.purchases" />
@@ -90,6 +95,23 @@
               @endcan
               @can('purchase_returns.view')
                 <x-menu-item :title="__('Returns')" icon="o-arrow-uturn-left" :link="route('app.purchase-returns')" route="app.purchase-returns" />
+              @endcan
+            </x-menu-sub>
+            @endcanany
+
+            @canany(['pos.access', 'sales.view', 'customers.view'])
+            <x-menu-sub :title="__('Sales & Customers')" icon="o-banknotes">
+              @can('pos.access')
+                <x-menu-item :title="__('POS')" icon="o-computer-desktop" :link="route('app.pos')" route="app.pos" />
+              @endcan
+              @can('sales.view')
+                <x-menu-item :title="__('Sales History')" icon="o-receipt-percent" :link="route('app.sales')" route="app.sales" />
+              @endcan
+              @can('orders.view')
+                <x-menu-item :title="__('Online Orders')" icon="o-shopping-bag" :link="route('app.orders')" route="app.orders" />
+              @endcan
+              @can('customers.view')
+                <x-menu-item :title="__('Customers')" icon="o-users" :link="route('app.customers')" route="app.customers" />
               @endcan
             </x-menu-sub>
             @endcanany

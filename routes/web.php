@@ -29,13 +29,29 @@ Route::middleware('auth')->group(function () {
     Route::livewire('/app/inventory/', 'app::inventory')->name('app.inventory');
     Route::livewire('/app/stock-adjustments/', 'app::stock-adjustments')->name('app.stock-adjustments');
     Route::livewire('/app/stock-movements/', 'app::stock-movements')->name('app.stock-movements');
+    Route::livewire('/app/batch-stock/', 'app::batch-stock')->name('app.batch-stock');
+    Route::livewire('/app/expiry-alerts/', 'app::expiry-alerts')->name('app.expiry-alerts');
+    Route::livewire('/app/batch-profitability/', 'app::batch-profitability')->name('app.batch-profitability');
 
     // Purchase Management
-    Route::livewire('/app/suppliers/', 'app::suppliers')->name('app.suppliers');
+    Route::livewire('/app/providers/', 'app::providers')->name('app.providers');
     Route::livewire('/app/purchases/', 'app::purchases')->name('app.purchases');
     Route::livewire('/app/purchases/create', 'app::purchase-form')->name('app.purchases.create');
     Route::livewire('/app/purchases/{purchase}/edit', 'app::purchase-form')->name('app.purchases.edit');
     Route::livewire('/app/purchase-returns/', 'app::purchase-returns')->name('app.purchase-returns');
+
+    // Customer Management
+    Route::livewire('/app/customers/', 'app::customers')->name('app.customers');
+    Route::livewire('/app/customers/{customer}', 'app::customer-detail')->name('app.customers.detail');
+
+    // POS & Sales
+    Route::livewire('/app/pos/', 'app::pos')->name('app.pos');
+    Route::livewire('/app/sales/', 'app::sales')->name('app.sales');
+    Route::livewire('/app/sales/{sale}', 'app::sale-detail')->name('app.sales.detail');
+
+    // Order Management
+    Route::livewire('/app/orders/', 'app::orders')->name('app.orders');
+    Route::livewire('/app/orders/{order}', 'app::order-detail')->name('app.orders.detail');
 
     Route::livewire('/app/notifications/', 'app::notifications')->name('app.notifications');
 
@@ -54,5 +70,21 @@ Route::get('api/push/status', [\App\Http\Controllers\PushSubscriptionController:
 
 // Public VAPID key endpoint (must be accessible without authentication)
 Route::get('api/push/vapid-key', [\App\Http\Controllers\PushSubscriptionController::class, 'vapidPublicKey'])->name('push.vapid-key');
+
+// Shop Routes
+Route::livewire('/shop', 'web::shop')->name('web.shop');
+Route::livewire('/shop/{slug}', 'web::shop')->name('web.shop.category');
+Route::livewire('/product/{slug}', 'web::product')->name('web.product');
+Route::livewire('/cart', 'web::cart')->name('web.cart');
+Route::livewire('/order-tracking', 'web::order-tracking')->name('web.order-tracking');
+
+Route::middleware('auth')->group(function () {
+    Route::livewire('/checkout', 'web::checkout')->name('web.checkout');
+
+    // Customer Account
+    Route::livewire('/account/orders', 'web::account-orders')->name('web.account.orders');
+    Route::livewire('/account/orders/{order}', 'web::account-order-detail')->name('web.account.orders.detail');
+    Route::livewire('/account/addresses', 'web::account-addresses')->name('web.account.addresses');
+});
 
 Route::livewire('{slug}', 'web::page')->name('web.page');

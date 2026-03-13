@@ -2,7 +2,7 @@
 
 use App\Models\Purchase;
 use App\Models\PurchasePayment;
-use App\Models\Supplier;
+use App\Models\User;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -18,7 +18,7 @@ class extends Component
     use Toast, WithPagination;
 
     public string $search = '';
-    public ?int $supplierFilter = null;
+    public ?int $providerFilter = null;
     public ?string $paymentFilter = null;
     public ?string $statusFilter = null;
     public ?string $dateFrom = null;
@@ -52,11 +52,11 @@ class extends Component
     public function purchases()
     {
         return Purchase::query()
-            ->with(['supplier', 'creator'])
+            ->with(['provider', 'creator'])
             ->withCount('items')
             ->when($this->search, fn ($q, $s) => $q->where('invoice_number', 'like', "%{$s}%")
-                ->orWhereHas('supplier', fn ($sq) => $sq->where('name', 'like', "%{$s}%")))
-            ->when($this->supplierFilter, fn ($q, $id) => $q->where('supplier_id', $id))
+                ->orWhereHas('provider', fn ($sq) => $sq->where('name', 'like', "%{$s}%")))
+            ->when($this->providerFilter, fn ($q, $id) => $q->where('provider_id', $id))
             ->when($this->paymentFilter, fn ($q, $p) => $q->where('payment_status', $p))
             ->when($this->statusFilter, fn ($q, $s) => $q->where('status', $s))
             ->when($this->dateFrom, fn ($q) => $q->where('purchase_date', '>=', $this->dateFrom))
@@ -78,11 +78,11 @@ class extends Component
     }
 
     #[Computed]
-    public function supplierOptions()
+    public function providerOptions()
     {
-        return Supplier::active()->orderBy('name')->get()
+        return User::role('provider')->active()->orderBy('name')->get()
             ->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])
-            ->prepend(['id' => null, 'name' => __('All Suppliers')])
+            ->prepend(['id' => null, 'name' => __('All Providers')])
             ->toArray();
     }
 
@@ -90,7 +90,7 @@ class extends Component
     public function detailPurchase()
     {
         if (! $this->detailPurchaseId) return null;
-        return Purchase::with(['supplier', 'items.variant.product', 'items.unit', 'payments.creator', 'creator'])
+        return Purchase::with(['provider', 'items.variant.product', 'items.unit', 'payments.creator', 'creator'])
             ->find($this->detailPurchaseId);
     }
 
@@ -175,7 +175,7 @@ class extends Component
 
     public function clearFilters(): void
     {
-        $this->reset(['search', 'supplierFilter', 'paymentFilter', 'statusFilter', 'dateFrom', 'dateTo']);
+        $this->reset(['search', 'providerFilter', 'paymentFilter', 'statusFilter', 'dateFrom', 'dateTo']);
         $this->resetPage();
     }
 };

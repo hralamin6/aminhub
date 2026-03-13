@@ -65,6 +65,15 @@ class PermissionSeeder extends Seeder
             'purchase_returns' => [
                 'purchase_returns.view', 'purchase_returns.create',
             ],
+            'customers' => [
+                'customers.view', 'customers.create', 'customers.edit', 'customers.delete',
+            ],
+            'sales' => [
+                'pos.access', 'sales.view', 'sales.create', 'sales.edit', 'sales.delete', 'sales.void',
+            ],
+            'orders' => [
+                'orders.view', 'orders.manage', 'orders.cancel', 'orders.return', 'orders.print',
+            ],
         ];
 
         // Create permissions
@@ -105,6 +114,9 @@ class PermissionSeeder extends Seeder
             'suppliers.view', 'suppliers.create', 'suppliers.edit',
             'purchases.view', 'purchases.create', 'purchases.edit', 'purchases.payment',
             'purchase_returns.view', 'purchase_returns.create',
+            'customers.view', 'customers.create', 'customers.edit', 'customers.delete',
+            'pos.access', 'sales.view', 'sales.create', 'sales.edit', 'sales.void',
+            'orders.view', 'orders.manage', 'orders.cancel', 'orders.return', 'orders.print',
         ])->get();
         $admin->syncPermissions($adminPerms);
 

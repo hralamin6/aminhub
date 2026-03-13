@@ -5,7 +5,7 @@ use App\Models\ProductVariant;
 use App\Models\Purchase;
 use App\Models\PurchaseItem;
 use App\Models\StockMovement;
-use App\Models\Supplier;
+use App\Models\User;
 use App\Models\Unit;
 use App\Services\InventoryService;
 use App\Services\UnitConversionService;
@@ -26,7 +26,7 @@ class extends Component
     public ?int $purchaseId = null;
 
     // Header
-    public ?int $supplier_id = null;
+    public ?int $provider_id = null;
     public string $purchase_date = '';
     public string $note = '';
     public float $discount = 0;
@@ -57,7 +57,7 @@ class extends Component
             abort(403, 'Only draft purchases can be edited.');
         }
 
-        $this->supplier_id = $p->supplier_id;
+        $this->provider_id = $p->provider_id;
         $this->purchase_date = $p->purchase_date->format('Y-m-d');
         $this->note = $p->note ?? '';
         $this->discount = (float) $p->discount;
@@ -80,9 +80,9 @@ class extends Component
     }
 
     #[Computed]
-    public function supplierOptions()
+    public function providerOptions()
     {
-        return Supplier::active()->orderBy('name')->get()
+        return User::role('provider')->active()->orderBy('name')->get()
             ->map(fn ($s) => ['id' => $s->id, 'name' => $s->name])
             ->toArray();
     }
@@ -163,7 +163,7 @@ class extends Component
     private function savePurchase(string $status): void
     {
         $this->validate([
-            'supplier_id' => 'required|exists:suppliers,id',
+            'provider_id' => 'required|exists:users,id',
             'purchase_date' => 'required|date',
             'discount' => 'nullable|numeric|min:0',
             'tax' => 'nullable|numeric|min:0',
@@ -181,7 +181,7 @@ class extends Component
                 : new Purchase();
 
             $purchase->fill([
-                'supplier_id' => $this->supplier_id,
+                'provider_id' => $this->provider_id,
                 'purchase_date' => $this->purchase_date,
                 'discount' => $this->discount,
                 'tax' => $this->tax,
@@ -256,8 +256,10 @@ class extends Component
                         'created_by' => auth()->id(),
                     ]);
 
-                    // Update variant purchase price
-                    $variant->update(['purchase_price' => $unitPrice]);
+                    // Update variant purchase price to base unit price
+                    // If buying 1 bag at 2000 (50kg), store 40/kg (2000/50)
+                    $baseUnitPrice = $baseQty > 0 ? ($unitPrice * $qty) / $baseQty : $unitPrice;
+                    $variant->update(['purchase_price' => round($baseUnitPrice, 2)]);
                 }
             }
 

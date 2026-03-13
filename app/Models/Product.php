@@ -120,6 +120,14 @@ class Product extends Model implements HasMedia
         return $this->hasMany(ProductUnit::class);
     }
 
+    /**
+     * Alias for unitConversions (used by CartService & shop components).
+     */
+    public function productUnits(): HasMany
+    {
+        return $this->hasMany(ProductUnit::class);
+    }
+
     // ─── Scopes ──────────────────────────────────────────
 
     public function scopeActive($query)
