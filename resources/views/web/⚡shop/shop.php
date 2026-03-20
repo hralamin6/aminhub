@@ -69,7 +69,7 @@ class extends Component
     {
         return Brand::where('is_active', true)
             ->withCount(['products' => fn ($q) => $q->active()])
-            ->having('products_count', '>', 0)
+            ->whereHas('products', fn ($q) => $q->active())
             ->orderBy('name')
             ->get();
     }

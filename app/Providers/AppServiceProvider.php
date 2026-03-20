@@ -30,9 +30,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        Paginator::defaultView('pagination::default');
+        Paginator::defaultView('pagination::bootstrap-3');
 
-        Paginator::defaultSimpleView('pagination::simple-default');
+        Paginator::defaultSimpleView('pagination::simple-bootstrap-3');
 
       try {
         if (\Schema::hasTable('settings')) {
