@@ -6,13 +6,10 @@ use App\Listeners\AuthActivityListener;
 use App\Models\User;
 use App\Observers\GlobalActivityObserver;
 use App\Observers\UserObserver;
-use Illuminate\Auth\Events\Login;
-use Illuminate\Auth\Events\Logout;
-use Illuminate\Auth\Events\Failed;
-use Illuminate\Auth\Events\Verified;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -28,30 +25,46 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Bootstrap any application services.
      */
+    protected function gate(): void
+    {
+        Gate::define('viewTelescope', function (User $user) {
+            return in_array($user->email, [
+                'admin@mail.com',
+            ]);
+        });
+    }
+
     public function boot(): void
     {
-        Paginator::defaultView('pagination::bootstrap-3');
+        Gate::define('viewPulse', function (User $user) {
+            return $user->hasRole('super-admin');
+        });
+        //    Gate::define('viewTelescope', function (User $user) {
+        //     return 1;
+        // });
 
-        Paginator::defaultSimpleView('pagination::simple-bootstrap-3');
+        // Paginator::defaultView('pagination::bootstrap-3');
 
-      try {
-        if (\Schema::hasTable('settings')) {
-          config([
-            'app.name' => setting('site_name', config('app.name')),
-            'mail.from.address' => setting('site_email', config('mail.from.address')),
-            'mail.from.name' => setting('site_name', config('mail.from.name')),
-          ]);
+        // Paginator::defaultSimpleView('pagination::simple-bootstrap-3');
+
+        try {
+            if (\Schema::hasTable('settings')) {
+                config([
+                    'app.name' => setting('site_name', config('app.name')),
+                    'mail.from.address' => setting('site_email', config('mail.from.address')),
+                    'mail.from.name' => setting('site_name', config('mail.from.name')),
+                ]);
+            }
+        } catch (\Exception $e) {
+            // ignore if during install
         }
-      } catch (\Exception $e) {
-        // ignore if during install
-      }
 
-      // Register Activity Observers and Listeners
-//      User::observe(UserObserver::class);
-      Event::subscribe(AuthActivityListener::class);
+        // Register Activity Observers and Listeners
+        //      User::observe(UserObserver::class);
+        Event::subscribe(AuthActivityListener::class);
 
-      // Register Global Activity Observer for ALL models using model events
-      $this->registerGlobalActivityObserver();
+        // Register Global Activity Observer for ALL models using model events
+        $this->registerGlobalActivityObserver();
     }
 
     /**
@@ -59,7 +72,7 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function registerGlobalActivityObserver(): void
     {
-        $observer = new GlobalActivityObserver();
+        $observer = new GlobalActivityObserver;
 
         Event::listen('eloquent.created: *', function ($event, $models) use ($observer) {
             foreach ($models as $model) {

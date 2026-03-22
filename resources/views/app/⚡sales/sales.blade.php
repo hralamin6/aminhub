@@ -1,6 +1,7 @@
 <div class="space-y-6">
   <x-header :title="__('Sales History')" :subtitle="__('All sales — POS and online orders.')" separator>
     <x-slot:actions>
+      <x-button class="btn-outline" icon="o-document-arrow-down" wire:click="downloadReport" spinner="downloadReport">{{ __('PDF Report') }}</x-button>
       @can('pos.access')
         <x-button class="btn-primary" icon="o-computer-desktop" link="/app/pos" wire:navigate>{{ __('Open POS') }}</x-button>
       @endcan
@@ -67,7 +68,7 @@
 
     {{-- Table --}}
     <div class="overflow-x-auto">
-      <table class="table w-full">
+      <table class="table table-sm table-zebra w-full whitespace-nowrap">
         <thead>
           <tr class="bg-base-200/50">
             <th>{{ __('Invoice') }}</th>
@@ -101,7 +102,8 @@
               <td class="text-center"><span class="badge {{ $sale->status_badge }} badge-sm">{{ ucfirst($sale->status) }}</span></td>
               <td class="text-sm text-base-content/60">{{ $sale->seller->name ?? '—' }}</td>
               <td class="text-right">
-                <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div class="flex items-center justify-end gap-1">
+                  <x-button class="btn-ghost btn-xs text-primary" icon="o-document-arrow-down" wire:click="downloadReceipt({{ $sale->id }})" spinner="downloadReceipt({{ $sale->id }})" title="{{ __('Receipt PDF') }}" />
                   <x-button class="btn-ghost btn-xs" icon="o-eye" link="/app/sales/{{ $sale->id }}" wire:navigate title="{{ __('View') }}" />
                   @if($sale->status === 'completed')
                     @can('sales.void')

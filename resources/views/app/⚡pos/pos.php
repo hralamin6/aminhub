@@ -27,6 +27,7 @@ class extends Component
     // Search & filter
     public string $search = '';
     public ?int $categoryFilter = null;
+    public ?int $subCategoryFilter = null;
 
     // Cart
     public array $cart = [];
@@ -61,30 +62,75 @@ class extends Component
     #[Computed]
     public function products()
     {
-        return ProductVariant::query()
-            ->with(['product.media', 'product.category'])
-            ->whereHas('product', fn ($q) => $q->where('is_active', true))
-            ->where('is_active', true)
-            ->when($this->search, fn ($q, $s) => $q->where(fn ($sq) =>
-                $sq->where('sku', 'like', "%{$s}%")
-                    ->orWhere('barcode', $s)
-                    ->orWhere('name', 'like', "%{$s}%")
-                    ->orWhereHas('product', fn ($pq) => $pq->where('name', 'like', "%{$s}%"))
-            ))
-            ->when($this->categoryFilter, fn ($q, $id) =>
-                $q->whereHas('product', fn ($pq) => $pq->where('category_id', $id)))
-            ->orderBy('product_id')
-            ->limit(24)
-            ->get();
+        // The active category filter: prefer sub-category, fallback to parent
+        $activeCategoryId = $this->subCategoryFilter ?? $this->categoryFilter;
+
+        if ($this->search && strlen($this->search) >= 2) {
+            // Use Scout/Meilisearch for fuzzy search
+            $productIds = \App\Models\Product::search($this->search)
+                ->where('is_active', 1)
+                ->keys();
+
+            $query = ProductVariant::query()
+                ->with(['product.media', 'product.category'])
+                ->where('is_active', true)
+                ->whereHas('product', function ($q) use ($productIds, $activeCategoryId) {
+                    $q->whereIn('id', $productIds);
+                    if ($activeCategoryId) {
+                        $q->where('category_id', $activeCategoryId);
+                    }
+                })
+                ->orderBy('product_id')
+                ->limit(30);
+        } else {
+            $query = ProductVariant::query()
+                ->with(['product.media', 'product.category'])
+                ->whereHas('product', fn ($q) => $q->where('is_active', true))
+                ->where('is_active', true)
+                ->when($activeCategoryId, fn ($q, $id) =>
+                    $q->whereHas('product', fn ($pq) => $pq->where('category_id', $id)))
+                ->orderBy('product_id')
+                ->limit(30);
+        }
+
+        return $query->get();
     }
 
     #[Computed]
     public function categories()
     {
         return Category::active()->whereNull('parent_id')
-            ->orderBy('name')->get()
-            ->map(fn ($c) => ['id' => $c->id, 'name' => $c->name])
-            ->toArray();
+            ->with(['children' => fn ($q) => $q->active()->orderBy('sort_order')])
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
+
+    #[Computed]
+    public function activeSubcategories()
+    {
+        if (! $this->categoryFilter) {
+            return collect();
+        }
+
+        return Category::active()
+            ->where('parent_id', $this->categoryFilter)
+            ->orderBy('sort_order')
+            ->orderBy('name')
+            ->get();
+    }
+
+    public function selectCategory(?int $id): void
+    {
+        $this->categoryFilter = $id;
+        $this->subCategoryFilter = null;
+        $this->search = '';
+    }
+
+    public function selectSubcategory(?int $id): void
+    {
+        $this->subCategoryFilter = $id;
+        $this->search = '';
     }
 
     #[Computed]
@@ -158,6 +204,20 @@ class extends Component
         return max(0, $this->grandTotal - $this->paid_amount);
     }
 
+    #[Computed]
+    public function totalCost(): float
+    {
+        return collect($this->cart)->sum(fn ($item) =>
+            (float) $item['quantity'] * (float) ($item['conversion_rate'] ?? 1) * (float) ($item['purchase_price'] ?? 0)
+        );
+    }
+
+    #[Computed]
+    public function totalProfit(): float
+    {
+        return max(0, $this->grandTotal - $this->totalCost);
+    }
+
     // ─── Cart ────────────────────────────────────────
 
     public function addToCart(int $variantId): void
@@ -211,23 +271,28 @@ class extends Component
             }
         }
 
+        $availableBatches = $this->getAvailableBatches($variant->id);
+        $firstBatch = $availableBatches[0] ?? null;
+
         $this->cart[] = [
-            'variant_id' => $variant->id,
-            'name' => $product->name,
-            'variant_name' => $variant->name,
-            'sku' => $variant->sku,
-            'quantity' => 1,
-            'unit_id' => $unitId,
-            'unit_name' => $unitName,
-            'unit_price' => $unitPrice,
-            'base_price' => $unitPrice,
-            'conversion_rate' => $conversionRate,
-            'available_units' => $availableUnits,
-            'batch_id' => null,
-            'batch_number' => null,
-            'available_batches' => $this->getAvailableBatches($variant->id),
-            'discount' => 0,
-            'available' => $variant->available_stock,
+            'variant_id'       => $variant->id,
+            'name'             => $product->name,
+            'variant_name'     => $variant->name,
+            'sku'              => $variant->sku,
+            'quantity'         => 1,
+            'unit_id'          => $unitId,
+            'unit_name'        => $unitName,
+            'unit_price'       => $unitPrice,
+            'base_price'       => $unitPrice,
+            'purchase_price'   => (float) $variant->purchase_price,
+            'conversion_rate'  => $conversionRate,
+            'available_units'  => $availableUnits,
+            'batch_id'         => $firstBatch['id'] ?? null,
+            'batch_number'     => $firstBatch['batch_number'] ?? null,
+            'available_batches' => $availableBatches,
+            'discount'         => 0,
+            'available'        => $variant->available_stock,
+            'price_locked'     => false,
         ];
     }
 
@@ -299,28 +364,51 @@ class extends Component
         }
     }
 
-    public function updateQty(int $index, float $qty): void
+    public function togglePriceLock(int $index): void
     {
         if (isset($this->cart[$index])) {
-            $this->cart[$index]['quantity'] = round(max(0.001, $qty), 3);
+            $this->cart[$index]['price_locked'] = ! ($this->cart[$index]['price_locked'] ?? false);
         }
     }
 
-    public function updatePrice(int $index, float $price): void
+    public function updateQty(int $index, mixed $qty): void
     {
         if (isset($this->cart[$index])) {
-            $this->cart[$index]['unit_price'] = round(max(0, $price), 3);
+            $qty = max(0.001, (float) ($qty ?: 0));
+            $this->cart[$index]['quantity'] = round($qty, 3);
         }
     }
 
-    public function updateTotalPrice(int $index, float $totalPrice): void
+    public function updatePrice(int $index, mixed $price): void
     {
         if (isset($this->cart[$index])) {
-            $unitPrice = (float) $this->cart[$index]['unit_price'];
+            $price = max(0, (float) ($price ?: 0));
+            $this->cart[$index]['unit_price'] = round($price, 3);
+        }
+    }
+
+    public function updateTotalPrice(int $index, mixed $totalPrice): void
+    {
+        if (! isset($this->cart[$index])) {
+            return;
+        }
+
+        $totalPrice = max(0, (float) ($totalPrice ?: 0));
+        $item = &$this->cart[$index];
+        $qty = (float) $item['quantity'];
+
+        if ($item['price_locked'] ?? false) {
+            // Price is locked → adjust quantity
+            $unitPrice = (float) $item['unit_price'];
             if ($unitPrice > 0) {
-                // Calculate quantity based on total price and unit price
-                $newQty = $totalPrice / $unitPrice;
-                $this->cart[$index]['quantity'] = round(max(0.001, $newQty), 3);
+                $item['quantity'] = round(max(0.001, $totalPrice / $unitPrice), 3);
+            }
+        } else {
+            // Price is not locked → adjust unit price
+            if ($qty > 0 && $totalPrice > 0) {
+                $item['unit_price'] = round($totalPrice / $qty, 3);
+            } elseif ($totalPrice === 0.0) {
+                $item['unit_price'] = 0;
             }
         }
     }
@@ -545,6 +633,9 @@ class extends Component
         });
 
         $this->clearCart();
+        $this->search = '';
+        $this->categoryFilter = null;
+        $this->subCategoryFilter = null;
         $this->showReceipt = true;
         $this->success(__('Sale completed!'), position: 'toast-bottom');
     }

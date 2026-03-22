@@ -4,6 +4,7 @@
   <x-header :title="$sale->invoice_number" :subtitle="__('Sale detail and receipt')" separator>
     <x-slot:actions>
       <x-button class="btn-ghost btn-sm" icon="o-arrow-left" link="/app/sales" wire:navigate>{{ __('Back') }}</x-button>
+      <x-button class="btn-outline btn-primary btn-sm" icon="o-document-text" wire:click="downloadReceipt" spinner="downloadReceipt">{{ __('Invoice PDF') }}</x-button>
       <x-button class="btn-outline btn-sm" icon="o-printer" onclick="window.print()">{{ __('Print') }}</x-button>
     </x-slot:actions>
   </x-header>
@@ -60,8 +61,27 @@
               @foreach($sale->items as $item)
                 <tr class="hover:bg-base-200/30">
                   <td>
-                    <div class="font-medium text-sm">{{ $item->variant->product->name ?? '—' }}</div>
-                    <div class="text-xs text-base-content/50">{{ $item->variant->name }} · {{ $item->variant->sku }}</div>
+                    <div class="flex items-center gap-3">
+                      <div class="avatar">
+                        <div class="w-10 h-10 rounded bg-base-100 border border-base-200 flex items-center justify-center shadow-sm">
+                          @if($item->variant->getFirstMediaUrl('images', 'thumb'))
+                            <img src="{{ $item->variant->getFirstMediaUrl('images', 'thumb') }}" alt="" class="object-cover w-full h-full rounded" />
+                          @elseif($item->variant->getFirstMediaUrl('images'))
+                            <img src="{{ $item->variant->getFirstMediaUrl('images') }}" alt="" class="object-cover w-full h-full rounded" />
+                          @elseif($item->variant->product && $item->variant->product->getFirstMediaUrl('product-images', 'thumb'))
+                            <img src="{{ $item->variant->product->getFirstMediaUrl('product-images', 'thumb') }}" alt="{{ $item->variant->product->name }}" class="object-cover w-full h-full rounded" />
+                          @elseif($item->variant->product && $item->variant->product->getFirstMediaUrl('product-images'))
+                            <img src="{{ $item->variant->product->getFirstMediaUrl('product-images') }}" alt="{{ $item->variant->product->name }}" class="object-cover w-full h-full rounded" />
+                          @else
+                            <x-icon name="o-photo" class="w-5 h-5 opacity-20" />
+                          @endif
+                        </div>
+                      </div>
+                      <div>
+                        <div class="font-medium text-sm">{{ $item->variant->product->name ?? '—' }}</div>
+                        <div class="text-xs text-base-content/50">{{ $item->variant->name }} · {{ $item->variant->sku }}</div>
+                      </div>
+                    </div>
                   </td>
                   <td class="text-right font-mono">{{ number_format($item->quantity, 2) }}</td>
                   <td class="text-sm">{{ $item->unit->short_name ?? '—' }}</td>

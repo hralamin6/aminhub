@@ -128,6 +128,11 @@ class OpenRouterService implements AiServiceInterface
         throw new \Exception('Image generation not supported by OpenRouter. Use Pollinations service.');
     }
 
+    public function editImage(string $imagePath, string $prompt, array $options = []): string
+    {
+        throw new \Exception('Image editing not supported by OpenRouter. Use Pollinations service.');
+    }
+
     public function getAvailableModels(): array
     {
 

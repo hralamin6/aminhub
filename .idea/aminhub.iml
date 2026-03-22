@@ -47,7 +47,6 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/jfcherng/php-diff" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/jfcherng/php-mb-string" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/jfcherng/php-sequence-matcher" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/laravel-frontend-presets/tall" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel-notification-channels/webpush" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/boost" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/framework" />
@@ -61,7 +60,6 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/serializable-closure" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/socialite" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/tinker" />
-      <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/ui" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/league/commonmark" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/league/config" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/league/flysystem" />
@@ -189,6 +187,18 @@
       <excludeFolder url="file://$MODULE_DIR$/vendor/webmozart/assert" />
       <excludeFolder url="file://$MODULE_DIR$/vendor/yandex/translate-api" />
       <excludeFolder url="file://$MODULE_DIR$/storage/media-library" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/clue/redis-protocol" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/clue/redis-react" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/evenement/evenement" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/laravel/sentinel" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/ratchet/rfc6455" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/cache" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/dns" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/event-loop" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/promise" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/promise-timer" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/socket" />
+      <excludeFolder url="file://$MODULE_DIR$/vendor/react/stream" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

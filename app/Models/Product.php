@@ -8,13 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Laravel\Scout\Searchable;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class Product extends Model implements HasMedia
 {
-    use InteractsWithMedia, LogsActivity, SoftDeletes;
+    use InteractsWithMedia, LogsActivity, Searchable, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -126,6 +127,26 @@ class Product extends Model implements HasMedia
     public function productUnits(): HasMany
     {
         return $this->hasMany(ProductUnit::class);
+    }
+
+    // ─── Scout / Search ─────────────────────────────────
+
+    public function toSearchableArray(): array
+    {
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'sku' => $this->sku,
+            'barcode' => $this->barcode,
+            'description' => $this->description,
+            'is_active' => $this->is_active ? 1 : 0,
+            'category_id' => $this->category_id,
+        ];
+    }
+
+    public function searchableAs(): string
+    {
+        return 'products';
     }
 
     // ─── Scopes ──────────────────────────────────────────

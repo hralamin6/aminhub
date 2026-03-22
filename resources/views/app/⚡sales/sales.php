@@ -129,6 +129,51 @@ class extends Component
         $this->success(__('Sale voided — stock restored.'), position: 'toast-bottom');
     }
 
+    public function downloadReceipt(int $id)
+    {
+        $this->authorize('sales.view');
+        $sale = Sale::with(['customer', 'seller', 'items.variant.product'])->findOrFail($id);
+        $path = storage_path("app/public/receipt-{$sale->invoice_number}.pdf");
+
+        \Spatie\LaravelPdf\Facades\Pdf::view('pdf.receipt', ['sale' => $sale])
+            ->paperSize(80, 200, 'mm')
+            ->margins(4, 4, 4, 4, 'mm')
+            ->save($path);
+
+        return response()->download($path)->deleteFileAfterSend();
+    }
+
+    public function downloadReport()
+    {
+        $this->authorize('sales.view');
+
+        // Fetch sales just like the pagination logic but grab all
+        $salesQuery = Sale::query()
+            ->with(['customer', 'seller', 'items.variant.product'])
+            ->withCount('items')
+            ->when($this->search, fn ($q, $s) => $q->where('invoice_number', 'like', "%{$s}%")
+                ->orWhere('customer_name', 'like', "%{$s}%")
+                ->orWhere('customer_phone', 'like', "%{$s}%")
+                ->orWhereHas('customer', fn ($cq) => $cq->where('name', 'like', "%{$s}%")))
+            ->when($this->paymentFilter, fn ($q, $v) => $q->where('payment_status', $v))
+            ->when($this->statusFilter, fn ($q, $v) => $q->where('status', $v))
+            ->when($this->typeFilter, fn ($q, $v) => $q->where('sale_type', $v))
+            ->when($this->methodFilter, fn ($q, $v) => $q->where('payment_method', $v))
+            ->when($this->dateFrom, fn ($q) => $q->whereDate('created_at', '>=', $this->dateFrom))
+            ->when($this->dateTo, fn ($q) => $q->whereDate('created_at', '<=', $this->dateTo))
+            ->latest();
+
+        $salesFilesName = "Sales-Report-".now()->format('Y-m-d').".pdf";
+        $path = storage_path("app/public/{$salesFilesName}");
+
+        \Spatie\LaravelPdf\Facades\Pdf::view('pdf.sales-report', ['sales' => $salesQuery->get()])
+            ->format('a4')
+            ->margins(5, 5, 5, 5, 'mm')
+            ->save($path);
+
+        return response()->download($path)->deleteFileAfterSend();
+    }
+
     public function clearFilters(): void
     {
         $this->reset(['search', 'paymentFilter', 'statusFilter', 'typeFilter', 'methodFilter', 'dateFrom', 'dateTo']);

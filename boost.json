@@ -9,10 +9,26 @@
     "guidelines": true,
     "herd_mcp": false,
     "mcp": true,
+    "nightwatch_mcp": false,
+    "packages": [
+        "spatie/laravel-medialibrary",
+        "spatie/laravel-backup",
+        "spatie/laravel-pdf",
+        "spatie/laravel-permission"
+    ],
     "sail": false,
     "skills": [
+        "configuring-horizon",
+        "pulse-development",
+        "scout-development",
+        "socialite-development",
         "livewire-development",
         "pest-testing",
-        "tailwindcss-development"
+        "echo-development",
+        "tailwindcss-development",
+        "laravel-backup",
+        "medialibrary-development",
+        "laravel-pdf",
+        "laravel-permission-development"
     ]
 }

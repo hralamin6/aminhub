@@ -76,17 +76,45 @@
               <x-input :label="__('Barcode')" wire:model="variants.{{ $i }}.barcode" placeholder="{{ __('Optional') }}" />
             </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
-              <x-input :label="__('Purchase Price (৳)')" wire:model="variants.{{ $i }}.purchase_price" type="number" step="0.01" min="0" />
-              <x-input :label="__('Retail Price (৳)')" wire:model="variants.{{ $i }}.retail_price" type="number" step="0.01" min="0" />
-              <x-input :label="__('Online Price (৳)')" wire:model="variants.{{ $i }}.online_price" type="number" step="0.01" min="0" placeholder="{{ __('Optional') }}" />
-              <x-input :label="__('Wholesale Price (৳)')" wire:model="variants.{{ $i }}.wholesale_price" type="number" step="0.01" min="0" placeholder="{{ __('Optional') }}" />
-            </div>
+            <div class="grid md:grid-cols-4 gap-4 mt-4 bg-base-200/50 p-3 rounded-lg border border-base-200">
+              <div class="md:col-span-1 border-r border-base-300 pr-4">
+                <div class="text-sm font-semibold mb-3 text-base-content/80 flex items-center justify-between">
+                  <div class="flex items-center"><x-icon name="o-photo" class="w-4 h-4 mr-1.5"/> {{ __('Variant Image') }}</div>
+                  <button type="button" wire:click="openAiModal('{{ $i }}')" class="btn btn-xs btn-ghost text-primary px-1 min-h-0 h-6" title="{{ __('Generate with AI') }}"><x-icon name="o-sparkles" class="w-4 h-4" /></button>
+                </div>
+                <div class="relative w-24">
+                  <x-avatar-upload
+                      model="variants.{{ $i }}.new_image"
+                      :image="(!empty($variant['ai_image_path']) && file_exists($variant['ai_image_path'])) ? 'data:image/jpeg;base64,'.base64_encode(file_get_contents($variant['ai_image_path'])) : (!empty($variant['new_image']) ? $variant['new_image']->temporaryUrl() : (!empty($variant['existing_image_url']) ? $variant['existing_image_url'] : ''))"
+                      size="w-24 h-24"
+                      accept="image/*"
+                  />
+                  @if(!empty($variant['new_image']) || !empty($variant['existing_image_url']) || !empty($variant['ai_image_path']))
+                    <div class="absolute -top-2 -right-2 flex gap-1 z-10">
+                      <button type="button" wire:click="openAiModal('{{ $i }}', '{{ !empty($variant['ai_image_path']) ? $variant['ai_image_path'] : (!empty($variant['new_image']) ? $variant['new_image']->getRealPath() : (!empty($variant['existing_image_url']) ? $variant['existing_image_url'] : '')) }}')" class="btn btn-circle btn-primary btn-xs w-6 h-6 min-h-0 shadow" title="{{ __('Edit with AI') }}">
+                        <x-icon name="o-pencil" class="w-3 h-3"/>
+                      </button>
+                      <button type="button" wire:click="removeVariantImage({{ $i }})" wire:confirm.prompt="{{ __('Are you sure? Type YES to confirm.') }}|YES" class="absolute -top-2 -right-2 btn btn-circle btn-error btn-xs w-6 h-6 min-h-0 shadow" title="{{ __('Remove Image') }}">
+                        <x-icon name="o-trash" class="w-3 h-3"/>
+                      </button>
+                    </div>
+                  @endif
+                </div>
+              </div>
 
-            <div class="grid md:grid-cols-3 gap-3 mt-3">
-              <x-input :label="__('Weight (base unit)')" wire:model="variants.{{ $i }}.weight" type="number" step="0.001" min="0" placeholder="{{ __('Optional') }}" />
-              <div class="flex items-end pb-1">
-                <x-toggle :label="__('Active')" wire:model="variants.{{ $i }}.is_active" />
+              <div class="md:col-span-3">
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <x-input :label="__('Purchase Price (৳)')" wire:model="variants.{{ $i }}.purchase_price" type="number" step="0.01" min="0" />
+                  <x-input :label="__('Retail Price (৳)')" wire:model="variants.{{ $i }}.retail_price" type="number" step="0.01" min="0" />
+                  <x-input :label="__('Online Price (৳)')" wire:model="variants.{{ $i }}.online_price" type="number" step="0.01" min="0" placeholder="{{ __('Optional') }}" />
+                  <x-input :label="__('Wholesale Price (৳)')" wire:model="variants.{{ $i }}.wholesale_price" type="number" step="0.01" min="0" placeholder="{{ __('Optional') }}" />
+                </div>
+                <div class="grid md:grid-cols-3 gap-3 mt-3">
+                  <x-input :label="__('Weight (base unit)')" wire:model="variants.{{ $i }}.weight" type="number" step="0.001" min="0" placeholder="{{ __('Optional') }}" />
+                  <div class="flex items-end pb-1 md:col-span-2">
+                    <x-toggle :label="__('Active Variant')" wire:model="variants.{{ $i }}.is_active" class="mt-2" />
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -142,10 +170,16 @@
                 <div class="aspect-square rounded-xl overflow-hidden border-2 border-base-300 hover:border-primary/30 transition-all">
                   <img src="{{ $img['url'] }}" alt="{{ $img['name'] }}" class="w-full h-full object-cover" />
                 </div>
-                <button class="absolute -top-2 -right-2 btn btn-circle btn-error btn-xs opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
-                  wire:click="removeExistingImage({{ $img['id'] }})" wire:confirm="{{ __('Remove this image?') }}">
-                  <x-icon name="o-x-mark" class="w-3 h-3" />
-                </button>
+                <div class="absolute -top-2 -right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                  <button type="button" class="btn btn-circle btn-primary btn-xs shadow-lg"
+                    wire:click="openAiModal('product', '{{ $img['url'] }}')" title="{{ __('Edit with AI') }}">
+                    <x-icon name="o-pencil" class="w-3 h-3" />
+                  </button>
+                  <button type="button" class="btn btn-circle btn-error btn-xs shadow-lg"
+                    wire:click="removeExistingImage({{ $img['id'] }})" wire:confirm="{{ __('Remove this image?') }}">
+                    <x-icon name="o-x-mark" class="w-3 h-3" />
+                  </button>
+                </div>
                 @if($loop->first)
                   <span class="absolute bottom-1 left-1 badge badge-primary badge-xs">{{ __('Primary') }}</span>
                 @endif
@@ -157,18 +191,67 @@
 
       {{-- Upload new --}}
       <div>
-        <x-file :label="__('Upload New Images')" wire:model="newImages" accept="image/*" multiple
-          hint="{{ __('Max 5MB each. JPG, PNG, WebP supported. You can select multiple files.') }}" />
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-medium text-base-content/70">{{ __('Upload New Images') }}</h4>
+          <button type="button" wire:click="openAiModal('product')" class="btn btn-sm btn-ghost text-primary font-bold"><x-icon name="o-sparkles" class="w-4 h-4 mr-1.5" /> {{ __('Generate with AI') }}</button>
+        </div>
+        <div class="relative w-full h-36 border-2 border-dashed border-primary/30 hover:border-primary bg-primary/5 hover:bg-primary/10 rounded-xl flex items-center justify-center transition-colors group cursor-pointer">
+          <div class="text-center text-primary group-hover:scale-105 transition-transform pointer-events-none">
+            <x-icon name="o-arrow-up-tray" class="w-10 h-10 mx-auto mb-2 opacity-80" />
+            <p class="font-bold text-sm">{{ __('Click to upload multiple images') }}</p>
+            <p class="text-[11px] opacity-70 mt-1 uppercase tracking-wider">{{ __('Max 5MB each. JPG, PNG, WebP.') }}</p>
+          </div>
+          <input type="file" wire:model="newImages" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 title-none" title="" />
+          
+          {{-- Progress --}}
+          <div wire:loading wire:target="newImages" class="absolute inset-0 flex items-center justify-center bg-base-100/90 backdrop-blur-sm z-20 rounded-xl">
+            <div class="text-center text-primary">
+              <span class="loading loading-ring loading-lg"></span>
+              <p class="text-xs font-bold tracking-widest mt-1">{{ __('UPLOADING...') }}</p>
+            </div>
+          </div>
+        </div>
 
         @if(count($newImages))
-          <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-4">
-            @foreach($newImages as $img)
-              <div class="aspect-square rounded-xl overflow-hidden border-2 border-success/30 bg-base-200">
+          <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-6 p-4 bg-success/5 border border-success/20 rounded-xl">
+            <div class="col-span-full">
+               <h4 class="text-xs font-bold text-success flex items-center"><x-icon name="o-check-circle" class="w-4 h-4 mr-1.5"/> {{ count($newImages) }} {{ __('new image(s) ready to be saved.') }}</h4>
+            </div>
+            @foreach($newImages as $k => $img)
+              <div class="aspect-square rounded-xl overflow-hidden shadow-sm relative group bg-white">
                 <img src="{{ $img->temporaryUrl() }}" class="w-full h-full object-cover" />
+                <button class="absolute -top-1.5 -right-1.5 btn btn-circle btn-error min-h-0 w-6 h-6 shadow opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                  wire:click="removeNewImage({{ $k }})" title="{{ __('Remove') }}">
+                  <x-icon name="o-x-mark" class="w-3 h-3" />
+                </button>
               </div>
             @endforeach
           </div>
-          <p class="text-sm text-success mt-2">{{ count($newImages) }} {{ __('new image(s) ready to upload') }}</p>
+        @endif
+
+        @if(count($newAiImages))
+          <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3 mt-6 p-4 bg-primary/5 border border-primary/20 rounded-xl">
+            <div class="col-span-full">
+               <h4 class="text-xs font-bold text-primary flex items-center"><x-icon name="o-sparkles" class="w-4 h-4 mr-1.5"/> {{ count($newAiImages) }} {{ __('AI generated image(s) ready to be saved.') }}</h4>
+            </div>
+            @foreach($newAiImages as $k => $aiImg)
+              @if(file_exists($aiImg))
+              <div class="aspect-square rounded-xl overflow-hidden shadow-sm relative group bg-white">
+                <img src="data:image/jpeg;base64,{{ base64_encode(file_get_contents($aiImg)) }}" class="w-full h-full object-cover" />
+                <div class="absolute -top-1.5 -right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                  <button type="button" class="btn btn-circle btn-primary btn-xs w-6 h-6 min-h-0 shadow"
+                    wire:click="openAiModal('product', '{{ $aiImg }}')" title="{{ __('Edit with AI') }}">
+                    <x-icon name="o-pencil" class="w-3 h-3" />
+                  </button>
+                  <button type="button" class="btn btn-circle btn-error min-h-0 w-6 h-6 shadow"
+                    wire:click="removeAiImage({{ $k }})" title="{{ __('Remove') }}">
+                    <x-icon name="o-x-mark" class="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+              @endif
+            @endforeach
+          </div>
         @endif
       </div>
     </x-card>
@@ -215,4 +298,28 @@
       </div>
     </div>
   </div>
+
+  {{-- AI Image Generation Modal --}}
+  <x-modal wire:model="showAiImageModal" title="{{ $aiImageSourcePath ? __('Edit Image with AI') : __('Generate AI Image') }}">
+    <div class="space-y-4 pt-2">
+      @if($aiImageSourcePath && file_exists($aiImageSourcePath))
+        <div class="flex items-center gap-4 p-3 bg-base-200 rounded-xl mb-4">
+          <div class="w-20 h-20 rounded-lg overflow-hidden flex-shrink-0 border border-base-300">
+            <img src="data:image/jpeg;base64,{{ base64_encode(file_get_contents($aiImageSourcePath)) }}" class="w-full h-full object-cover" />
+          </div>
+          <div class="text-xs">
+            <p class="font-bold text-base-content/70">{{ __('Source Image') }}</p>
+            <p class="mt-1 opacity-50">{{ __('You are editing this image. Describe the changes you want below.') }}</p>
+          </div>
+        </div>
+      @endif
+
+      <x-textarea :label="__('Prompt')" wire:model="aiImagePrompt" rows="3" placeholder="{{ $aiImageSourcePath ? __('Describe what to change...') : __('e.g. A realistic bag of fertilizer on a clean white background...') }}" required />
+      
+      <div class="flex justify-end gap-2 mt-4">
+        <x-button :label="__('Cancel')" wire:click="$set('showAiImageModal', false)" class="btn-ghost btn-sm" />
+        <x-button :label="__('Process')" wire:click="generateAiImage" class="btn-primary w-32 btn-sm" spinner="generateAiImage" icon="o-sparkles" />
+      </div>
+    </div>
+  </x-modal>
 </div>

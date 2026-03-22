@@ -166,6 +166,66 @@ class PollinationsService implements AiServiceInterface
         }
     }
 
+    public function editImage(string $imagePath, string $prompt, array $options = []): string
+    {
+        try {
+            if (!file_exists($imagePath)) {
+                throw new \Exception("Image file not found: {$imagePath}");
+            }
+
+            $model = $options['model'] ?? 'flux';
+            $width = $options['width'] ?? 1024;
+            $height = $options['height'] ?? 1024;
+
+            $request = Http::withHeaders([
+                'Authorization' => 'Bearer ' . $this->apiKey,
+            ])
+            ->timeout(120)
+            ->asMultipart();
+
+            // Add the image file
+            $request->attach('image', file_get_contents($imagePath), basename($imagePath));
+            
+            // Add prompt and other fields
+            $response = $request->post($this->baseUrl . '/v1/images/edits', [
+                'prompt' => $prompt,
+                'model' => $model,
+                'n' => 1,
+                'size' => "{$width}x{$height}",
+            ]);
+
+            if ($response->failed()) {
+                $error = $response->json('error.message') ?? $response->body();
+                throw new \Exception("Pollinations Edit Error: {$error}");
+            }
+
+            $data = $response->json();
+            $imageUrl = $data['data'][0]['url'] ?? null;
+
+            if (!$imageUrl) {
+                throw new \Exception("No image URL returned from Pollinations edit.");
+            }
+
+            // Download the result
+            $imgResponse = Http::get($imageUrl);
+            if ($imgResponse->failed()) {
+                throw new \Exception("Failed to download edited image from {$imageUrl}");
+            }
+
+            $tempPath = storage_path('app/temp/pollinations_edit_' . uniqid() . '.png');
+            if (!is_dir(dirname($tempPath))) {
+                mkdir(dirname($tempPath), 0755, true);
+            }
+            file_put_contents($tempPath, $imgResponse->body());
+
+            return $tempPath;
+
+        } catch (\Exception $e) {
+            Log::error('Pollinations Image Editing Error', ['error' => $e->getMessage()]);
+            throw $e;
+        }
+    }
+
     public function getAvailableModels(): array
     {
         return [

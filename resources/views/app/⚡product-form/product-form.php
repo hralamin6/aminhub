@@ -52,6 +52,13 @@ class extends Component
     public array $newImages = [];
     public array $existingImages = [];
 
+    // AI Image Generation & Editing
+    public bool $showAiImageModal = false;
+    public string $aiImagePrompt = '';
+    public ?string $aiImageTarget = null; // 'product' or numeric index for variants
+    public ?string $aiImageSourcePath = null; // Path to the image being edited
+    public array $newAiImages = [];
+
     public function mount(?int $product = null): void
     {
         if ($product) {
@@ -64,9 +71,84 @@ class extends Component
         }
     }
 
+    public function openAiModal(string $target, ?string $sourceUrlOrPath = null)
+    {
+        $this->aiImageTarget = $target;
+        $this->aiImageSourcePath = null;
+        $this->showAiImageModal = true;
+        
+        $baseName = $this->name ?: 'My Product';
+        if ($target === 'product') {
+            $this->aiImagePrompt = "Professional product photography of {$baseName}, high quality, studio lighting, clear clean background";
+        } else {
+            $variantName = $this->variants[$target]['name'] ?? 'variant';
+            $this->aiImagePrompt = "Professional product photography of {$baseName} - {$variantName}, high quality, studio lighting, clean background";
+        }
+
+        if ($sourceUrlOrPath) {
+            // Handle editing existing image
+            try {
+                // If it's a media URL, we need to find the local path or download it
+                if (str_starts_with($sourceUrlOrPath, 'http')) {
+                    // Try to extract media ID if it's from our own storage
+                    // Or just download it to a temp file for editing
+                    $tempFile = storage_path('app/temp/edit_source_' . uniqid() . '.png');
+                    if (!is_dir(dirname($tempFile))) mkdir(dirname($tempFile), 0755, true);
+                    file_put_contents($tempFile, file_get_contents($sourceUrlOrPath));
+                    $this->aiImageSourcePath = $tempFile;
+                } elseif (file_exists($sourceUrlOrPath)) {
+                    $this->aiImageSourcePath = $sourceUrlOrPath;
+                }
+                
+                $this->aiImagePrompt = "Edit this image of {$baseName}: [YOUR REQUEST HERE]";
+            } catch (\Exception $e) {
+                $this->error(__('Could not load image for editing: ') . $e->getMessage());
+            }
+        }
+    }
+
+    public function generateAiImage()
+    {
+        $this->validate(['aiImagePrompt' => 'required|string|max:1000']);
+        
+        try {
+            $aiService = \App\Services\AI\AiServiceFactory::make('pollinations');
+            
+            if ($this->aiImageSourcePath && file_exists($this->aiImageSourcePath)) {
+                // EDIT MODE
+                $imagePath = $aiService->editImage($this->aiImageSourcePath, $this->aiImagePrompt, [
+                    'width' => 1024,
+                    'height' => 1024,
+                    'model' => 'flux',
+                ]);
+            } else {
+                // GENERATE MODE
+                $imagePath = $aiService->generateImage($this->aiImagePrompt, [
+                    'width' => 1024,
+                    'height' => 1024,
+                    'model' => 'flux',
+                ]);
+            }
+
+            if ($this->aiImageTarget === 'product') {
+                $this->newAiImages[] = $imagePath;
+            } else {
+                $idx = (int)$this->aiImageTarget;
+                $this->variants[$idx]['ai_image_path'] = $imagePath;
+                $this->variants[$idx]['new_image'] = null; // Clear manual upload
+            }
+
+            $this->success($this->aiImageSourcePath ? __('AI Image edited successfully!') : __('AI Image generated successfully!'), position: 'toast-bottom');
+            $this->showAiImageModal = false;
+            $this->aiImageSourcePath = null;
+        } catch (\Exception $e) {
+            $this->error(__('Failed to process image: ') . $e->getMessage(), position: 'toast-bottom');
+        }
+    }
+
     private function loadProduct(int $id): void
     {
-        $product = Product::with(['variants' => fn ($q) => $q->orderBy('sort_order'), 'unitConversions.unit', 'media'])->findOrFail($id);
+        $product = Product::with(['variants' => fn ($q) => $q->orderBy('sort_order')->with('media'), 'unitConversions.unit', 'media'])->findOrFail($id);
 
         $this->productId = $product->id;
         $this->name = $product->name;
@@ -96,6 +178,9 @@ class extends Component
             'wholesale_price' => $v->wholesale_price ? (float) $v->wholesale_price : null,
             'weight' => $v->weight ? (float) $v->weight : null,
             'is_active' => $v->is_active,
+            'existing_image_url' => $v->getFirstMediaUrl('images', 'thumb') ?: null,
+            'new_image' => null,
+            'media_id' => $v->getFirstMedia('images')?->id,
         ])->toArray();
 
         if (empty($this->variants)) {
@@ -132,6 +217,10 @@ class extends Component
             'wholesale_price' => null,
             'weight' => null,
             'is_active' => true,
+            'existing_image_url' => null,
+            'new_image' => null,
+            'ai_image_path' => null,
+            'media_id' => null,
         ];
     }
 
@@ -202,6 +291,28 @@ class extends Component
         $this->variants = array_values($this->variants);
     }
 
+    public function removeVariantImage(int $index): void
+    {
+        $variantArray = $this->variants[$index] ?? null;
+        if (!$variantArray) return;
+
+        // Clear newly uploaded file if any
+        $this->variants[$index]['new_image'] = null;
+
+        // If it has an existing saved image, remove it from DB
+        if (!empty($variantArray['media_id'])) {
+            $variant = \App\Models\ProductVariant::find($variantArray['id']);
+            if ($variant) {
+                $media = $variant->media()->find($variantArray['media_id']);
+                $media?->delete();
+            }
+        }
+        
+        $this->variants[$index]['existing_image_url'] = null;
+        $this->variants[$index]['media_id'] = null;
+        $this->variants[$index]['ai_image_path'] = null;
+    }
+
     // ─── Unit Conversion Management ─────────────────────
 
     public function addUnitConversion(): void
@@ -236,6 +347,18 @@ class extends Component
         }
     }
 
+    public function removeNewImage(int $index): void
+    {
+        unset($this->newImages[$index]);
+        $this->newImages = array_values($this->newImages);
+    }
+
+    public function removeAiImage(int $index): void
+    {
+        unset($this->newAiImages[$index]);
+        $this->newAiImages = array_values($this->newAiImages);
+    }
+
     // ─── Save ───────────────────────────────────────────
 
     public function save(): void
@@ -258,6 +381,7 @@ class extends Component
             'variants.*.name' => 'required|string|max:255',
             'variants.*.purchase_price' => 'numeric|min:0',
             'variants.*.retail_price' => 'numeric|min:0',
+            'variants.*.new_image' => 'nullable|image|max:5120',
             'newImages.*' => 'nullable|image|max:5120',
         ]);
 
@@ -309,6 +433,19 @@ class extends Component
             } else {
                 $newVariant = $product->variants()->create($variantData);
                 $existingIds[] = $newVariant->id;
+                $variant = $newVariant;
+            }
+
+            // Save variant image
+            if (isset($v['new_image']) && !empty($v['new_image'])) {
+                $variant->clearMediaCollection('images');
+                $variant->addMedia($v['new_image']->getRealPath())
+                    ->usingFileName(time() . '_' . Str::random(6) . '.' . $v['new_image']->getClientOriginalExtension())
+                    ->toMediaCollection('images');
+            } elseif (isset($v['ai_image_path']) && !empty($v['ai_image_path']) && file_exists($v['ai_image_path'])) {
+                $variant->clearMediaCollection('images');
+                $variant->addMedia($v['ai_image_path'])
+                    ->toMediaCollection('images');
             }
         }
         // Remove deleted variants
@@ -344,6 +481,15 @@ class extends Component
                     ->toMediaCollection('product-images');
             }
             $this->newImages = [];
+        }
+
+        if (! empty($this->newAiImages)) {
+            foreach ($this->newAiImages as $imagePath) {
+                if (file_exists($imagePath)) {
+                    $product->addMedia($imagePath)->toMediaCollection('product-images');
+                }
+            }
+            $this->newAiImages = [];
         }
 
         $this->success(__('Product saved successfully!'), position: 'toast-bottom');

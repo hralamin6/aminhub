@@ -20,6 +20,11 @@ interface AiServiceInterface
     public function generateImage(string $prompt, array $options = []): string;
 
     /**
+     * Edit an image
+     */
+    public function editImage(string $imagePath, string $prompt, array $options = []): string;
+
+    /**
      * Get available models
      */
     public function getAvailableModels(): array;
