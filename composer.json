@@ -9,7 +9,7 @@
     ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
+        "php": "^8.4",
         "erag/laravel-pwa": "^2.0",
         "http-interop/http-factory-guzzle": "^1.2",
         "laravel-notification-channels/webpush": "^10.2",
