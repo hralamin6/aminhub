@@ -1,10 +1,6 @@
 {
   "resources/css/app.css": {
-<<<<<<< HEAD
-    "file": "assets/app-CtfpT7v3.css",
-=======
     "file": "assets/app-BsV75WPb.css",
->>>>>>> 370c1dfac6b2731658ddd269f79e327ce52e43b5
     "src": "resources/css/app.css",
     "isEntry": true,
     "names": [
