@@ -13,6 +13,8 @@ class ProductBatch extends Model
         'batch_number',
         'manufacturing_date',
         'expiry_date',
+        'purchase_price',
+        'landed_cost',
         'initial_quantity',
         'note',
     ];
@@ -21,6 +23,8 @@ class ProductBatch extends Model
         'manufacturing_date' => 'date',
         'expiry_date' => 'date',
         'initial_quantity' => 'decimal:4',
+        'purchase_price' => 'decimal:4',
+        'landed_cost' => 'decimal:4',
     ];
 
     // ─── Relationships ───────────────────────────────
@@ -59,13 +63,19 @@ class ProductBatch extends Model
 
     public function getIsExpiringSoonAttribute(): bool
     {
-        if (! $this->expiry_date) return false;
+        if (! $this->expiry_date) {
+            return false;
+        }
+
         return $this->expiry_date->isBetween(now(), now()->addDays(30));
     }
 
     public function getDaysUntilExpiryAttribute(): ?int
     {
-        if (! $this->expiry_date) return null;
+        if (! $this->expiry_date) {
+            return null;
+        }
+
         return (int) now()->diffInDays($this->expiry_date, false);
     }
 
@@ -76,6 +86,7 @@ class ProductBatch extends Model
     {
         $in = $this->stockMovements()->where('direction', 'in')->sum('quantity');
         $out = $this->stockMovements()->where('direction', 'out')->sum('quantity');
+
         return (float) ($in - $out);
     }
 }

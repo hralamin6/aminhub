@@ -103,6 +103,7 @@ class extends Component
     {
         $query = auth()->user()
             ->aiConversations()
+            ->where('ai_provider', '!=', 'database')
             ->with(['messages' => fn($q) => $q->latest()->limit(1)])
             ->orderBy('last_message_at', 'desc');
 

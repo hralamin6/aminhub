@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PushSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 require __DIR__.'/auth.php';
@@ -8,6 +9,7 @@ Route::livewire('/', 'web::home')->name('web.home');
 
 Route::middleware('auth')->group(function () {
     Route::livewire('/app/', 'app::dashboard')->name('app.dashboard');
+    Route::livewire('/app/askai/', 'app::askai')->name('app.askai');
 
     Route::livewire('/app/profile/', 'app::profile')->name('app.profile');
     Route::livewire('/app/settings/', 'app::settings')->name('app.settings');
@@ -64,12 +66,12 @@ Route::middleware('auth')->group(function () {
 });
 
 // Push notification API routes (now accessible to both guests and authenticated users)
-Route::post('api/push/subscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'subscribe'])->name('push.subscribe');
-Route::post('api/push/unsubscribe', [\App\Http\Controllers\PushSubscriptionController::class, 'unsubscribe'])->name('push.unsubscribe');
-Route::get('api/push/status', [\App\Http\Controllers\PushSubscriptionController::class, 'status'])->name('push.status');
+Route::post('api/push/subscribe', [PushSubscriptionController::class, 'subscribe'])->name('push.subscribe');
+Route::post('api/push/unsubscribe', [PushSubscriptionController::class, 'unsubscribe'])->name('push.unsubscribe');
+Route::get('api/push/status', [PushSubscriptionController::class, 'status'])->name('push.status');
 
 // Public VAPID key endpoint (must be accessible without authentication)
-Route::get('api/push/vapid-key', [\App\Http\Controllers\PushSubscriptionController::class, 'vapidPublicKey'])->name('push.vapid-key');
+Route::get('api/push/vapid-key', [PushSubscriptionController::class, 'vapidPublicKey'])->name('push.vapid-key');
 
 // Shop Routes
 Route::livewire('/shop', 'web::shop')->name('web.shop');

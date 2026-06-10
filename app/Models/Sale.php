@@ -23,6 +23,8 @@ class Sale extends Model
         'discount_amount',
         'tax',
         'grand_total',
+        'total_cost',
+        'total_profit',
         'paid_amount',
         'change_amount',
         'due_amount',
@@ -39,6 +41,8 @@ class Sale extends Model
         'discount_amount' => 'decimal:2',
         'tax' => 'decimal:2',
         'grand_total' => 'decimal:2',
+        'total_cost' => 'decimal:2',
+        'total_profit' => 'decimal:2',
         'paid_amount' => 'decimal:2',
         'change_amount' => 'decimal:2',
         'due_amount' => 'decimal:2',
@@ -73,7 +77,7 @@ class Sale extends Model
             $seq = ((int) end($parts)) + 1;
         }
 
-        return $prefix . str_pad($seq, 4, '0', STR_PAD_LEFT);
+        return $prefix.str_pad($seq, 4, '0', STR_PAD_LEFT);
     }
 
     // ─── Relationships ───────────────────────────────
@@ -100,6 +104,7 @@ class Sale extends Model
         if ($this->customer) {
             return $this->customer->name;
         }
+
         return $this->customer_name ?: __('Walk-in Customer');
     }
 

@@ -120,6 +120,7 @@
               <x-menu-item :title="__('Profile')" icon="o-user-circle" :link="route('app.profile')" route="app.profile"/>
               <x-menu-item :title="__('Chat')" icon="o-chat-bubble-left-right" :link="route('app.chat')" route="app.chat" />
               <x-menu-item :title="__('AI Chat')" icon="o-chat-bubble-left-right" :link="route('app.ai-chat')" route="app.ai-chat" />
+              <x-menu-item :title="__('Ask AI')" icon="o-sparkles" :link="route('app.askai')" route="app.askai" />
               @can('activity.my')
                 <x-menu-item :title="__('Push Notifications')" icon="o-bell" :link="route('app.notifications')" route="app.notifications"/>
                 <x-menu-item :title="__('My Activities')" icon="o-clock" :link="route('app.activity.my')" route="app.activity.my"/>

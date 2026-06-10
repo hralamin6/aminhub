@@ -4,7 +4,6 @@ namespace App\Services;
 
 use App\Models\ProductBatch;
 use App\Models\ProductVariant;
-use App\Models\SaleItem;
 use App\Models\StockAdjustment;
 use App\Models\StockMovement;
 use Illuminate\Support\Collection;
@@ -18,6 +17,7 @@ class InventoryService
      * Automatically deducts from oldest batches first.
      *
      * @return array Array of created stock movements with batch info
+     *
      * @throws \RuntimeException if insufficient stock
      */
     public function deductSaleStockWithBatches(
@@ -27,65 +27,26 @@ class InventoryService
         int $saleItemId,
         int $saleId
     ): array {
+        // This method is now legacy for POS, but kept for compatibility.
+        // It creates multiple stock movements for a SINGLE sale item.
         $baseQty = $this->convertToBaseUnit($variantId, $unitId, $quantity);
 
         if (! $this->hasStock($variantId, $baseQty)) {
             throw new \RuntimeException(__('Insufficient stock for this sale.'));
         }
 
+        $splits = $this->getFIFOSplit($variantId, $baseQty);
         $movements = [];
-        $remainingQty = $baseQty;
 
-        // Get batches with remaining stock, ordered by creation date (FIFO)
-        $batches = ProductBatch::where('product_variant_id', $variantId)
-            ->whereHas('stockMovements', function ($q) {
-                $q->where('direction', 'in');
-            })
-            ->withSum(['stockMovements as total_in' => fn($q) => $q->where('direction', 'in')], 'quantity')
-            ->withSum(['stockMovements as total_out' => fn($q) => $q->where('direction', 'out')], 'quantity')
-            ->orderBy('created_at')
-            ->get();
-
-        foreach ($batches as $batch) {
-            if ($remainingQty <= 0) break;
-
-            $batchStock = (float) ($batch->total_in - $batch->total_out);
-
-            if ($batchStock > 0) {
-                $deductQty = min($remainingQty, $batchStock);
-
-                $movement = StockMovement::create([
-                    'product_variant_id' => $variantId,
-                    'batch_id' => $batch->id,
-                    'type' => 'sale',
-                    'direction' => 'out',
-                    'quantity' => $deductQty,
-                    'unit_id' => $unitId,
-                    'original_quantity' => $quantity * ($deductQty / $baseQty), // Proportional original qty
-                    'reference_type' => 'sale',
-                    'reference_id' => $saleId,
-                    'created_by' => Auth::id(),
-                ]);
-
-                $movements[] = [
-                    'movement' => $movement,
-                    'batch' => $batch,
-                    'quantity' => $deductQty,
-                ];
-
-                $remainingQty -= $deductQty;
-            }
-        }
-
-        // If there's still remaining quantity, create movement without batch
-        if ($remainingQty > 0) {
+        foreach ($splits as $split) {
             $movement = StockMovement::create([
                 'product_variant_id' => $variantId,
+                'batch_id' => $split['batch_id'],
                 'type' => 'sale',
                 'direction' => 'out',
-                'quantity' => $remainingQty,
+                'quantity' => $split['quantity'],
                 'unit_id' => $unitId,
-                'original_quantity' => $quantity * ($remainingQty / $baseQty),
+                'original_quantity' => $quantity * ($split['quantity'] / $baseQty),
                 'reference_type' => 'sale',
                 'reference_id' => $saleId,
                 'created_by' => Auth::id(),
@@ -93,12 +54,83 @@ class InventoryService
 
             $movements[] = [
                 'movement' => $movement,
-                'batch' => null,
-                'quantity' => $remainingQty,
+                'batch_id' => $split['batch_id'],
+                'quantity' => $split['quantity'],
             ];
         }
 
         return $movements;
+    }
+
+    /**
+     * Get how a quantity should be split across batches using FIFO.
+     * If startBatchId is provided, that batch is used first.
+     * Returns array: [['batch_id' => id, 'quantity' => qty, 'unit_cost' => cost], ...]
+     */
+    public function getFIFOSplit(int $variantId, float $baseQty, ?int $startBatchId = null, bool $allowNegative = false): array
+    {
+        $remainingQty = $baseQty;
+        $splits = [];
+
+        $batchesQuery = ProductBatch::where('product_variant_id', $variantId)
+            ->withSum(['stockMovements as total_in' => fn ($q) => $q->where('direction', 'in')], 'quantity')
+            ->withSum(['stockMovements as total_out' => fn ($q) => $q->where('direction', 'out')], 'quantity');
+
+        if ($startBatchId) {
+            $batchesQuery->where(function ($q) use ($startBatchId) {
+                $q->where('id', $startBatchId)->orWhere(function ($sq) {
+                    $sq->whereNotNull('id');
+                });
+            });
+            $batchesQuery->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$startBatchId]);
+        }
+
+        $batches = $batchesQuery->orderBy('created_at')->get();
+        $lastBatchId = $startBatchId;
+
+        foreach ($batches as $batch) {
+            if ($remainingQty <= 0) {
+                break;
+            }
+
+            $batchStock = (float) ($batch->total_in - $batch->total_out);
+            $lastBatchId = $batch->id;
+
+            if ($batchStock > 0) {
+                $deductQty = min($remainingQty, $batchStock);
+                $splits[] = [
+                    'batch_id' => $batch->id,
+                    'quantity' => $deductQty,
+                    'unit_cost' => (float) ($batch->purchase_price ?? 0),
+                ];
+                $remainingQty -= $deductQty;
+            }
+        }
+
+        // Overselling case
+        if ($remainingQty > 0) {
+            if (! $allowNegative) {
+                throw new \RuntimeException(__('Only :available stock available.', [
+                    'available' => ($baseQty - $remainingQty),
+                ]));
+            }
+
+            $variant = ProductVariant::find($variantId);
+
+            // If we already have a split for the last used batch, just add to it instead of creating a new row
+            $lastSplitIndex = count($splits) - 1;
+            if ($lastSplitIndex >= 0 && $splits[$lastSplitIndex]['batch_id'] === $lastBatchId) {
+                $splits[$lastSplitIndex]['quantity'] += $remainingQty;
+            } else {
+                $splits[] = [
+                    'batch_id' => $lastBatchId ?: null,
+                    'quantity' => $remainingQty,
+                    'unit_cost' => (float) ($variant->purchase_price ?? 0),
+                ];
+            }
+        }
+
+        return $splits;
     }
 
     /**
@@ -107,8 +139,8 @@ class InventoryService
     public function getBatchWiseStock(int $variantId): Collection
     {
         return ProductBatch::where('product_variant_id', $variantId)
-            ->withSum(['stockMovements as total_in' => fn($q) => $q->where('direction', 'in')], 'quantity')
-            ->withSum(['stockMovements as total_out' => fn($q) => $q->where('direction', 'out')], 'quantity')
+            ->withSum(['stockMovements as total_in' => fn ($q) => $q->where('direction', 'in')], 'quantity')
+            ->withSum(['stockMovements as total_out' => fn ($q) => $q->where('direction', 'out')], 'quantity')
             ->orderBy('created_at')
             ->get()
             ->map(fn ($batch) => [
@@ -126,7 +158,7 @@ class InventoryService
     public function getBatchProfitability(int $variantId): Collection
     {
         return ProductBatch::where('product_variant_id', $variantId)
-            ->with(['stockMovements' => fn($q) => $q->whereIn('type', ['purchase', 'sale'])])
+            ->with(['stockMovements' => fn ($q) => $q->whereIn('type', ['purchase', 'sale'])])
             ->orderBy('created_at')
             ->get()
             ->map(function ($batch) {
@@ -137,13 +169,11 @@ class InventoryService
                 $saleQty = $saleMovements->sum('quantity');
 
                 // Calculate average purchase price from purchase movements
-                $avgPurchasePrice = $purchaseMovements->avg(fn($m) =>
-                    $m->original_quantity > 0 ? $m->reference?->unit_price ?? 0 : 0
+                $avgPurchasePrice = $purchaseMovements->avg(fn ($m) => $m->original_quantity > 0 ? $m->reference?->unit_price ?? 0 : 0
                 ) ?: 0;
 
                 // Calculate average sale price from sale movements
-                $avgSalePrice = $saleMovements->avg(fn($m) =>
-                    $m->original_quantity > 0 ? ($m->quantity / $m->original_quantity) * ($m->reference?->unit_price ?? 0) : 0
+                $avgSalePrice = $saleMovements->avg(fn ($m) => $m->original_quantity > 0 ? ($m->quantity / $m->original_quantity) * ($m->reference?->unit_price ?? 0) : 0
                 ) ?: 0;
 
                 $currentStock = $purchaseQty - $saleQty;
@@ -169,8 +199,8 @@ class InventoryService
     public function getAllBatchWiseStock(): Collection
     {
         return ProductBatch::with(['variant.product.baseUnit'])
-            ->withSum(['stockMovements as total_in' => fn($q) => $q->where('direction', 'in')], 'quantity')
-            ->withSum(['stockMovements as total_out' => fn($q) => $q->where('direction', 'out')], 'quantity')
+            ->withSum(['stockMovements as total_in' => fn ($q) => $q->where('direction', 'in')], 'quantity')
+            ->withSum(['stockMovements as total_out' => fn ($q) => $q->where('direction', 'out')], 'quantity')
             ->orderBy('expiry_date')
             ->get()
             ->map(fn ($batch) => [
@@ -184,6 +214,7 @@ class InventoryService
                 'is_expiring_soon' => $batch->is_expiring_soon,
             ]);
     }
+
     /**
      * Add stock from a purchase.
      */
@@ -360,7 +391,7 @@ class InventoryService
                 'quantity' => $quantity,
                 'reference_type' => 'stock_adjustment',
                 'reference_id' => $adjustment->id,
-                'note' => "Adjustment: {$reason}" . ($note ? " — {$note}" : ''),
+                'note' => "Adjustment: {$reason}".($note ? " — {$note}" : ''),
                 'created_by' => Auth::id(),
             ]);
 

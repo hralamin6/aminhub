@@ -48,7 +48,7 @@
         $hasUnits  = count($item['available_units'] ?? []) > 1;
         $lineTotal = round($item['quantity'] * $item['unit_price'], 2);
         $convRate  = (float) ($item['conversion_rate'] ?? 1);
-        $baseCost  = (float) ($item['purchase_price'] ?? 0);
+        $baseCost  = (float) ($item['base_cost'] ?? $item['purchase_price'] ?? 0);
         $unitCost  = $baseCost * $convRate;
         $profit    = round(($item['unit_price'] - $unitCost) * $item['quantity'], 2);
         $baseUnitName = $item['available_units'][0]['unit_name'] ?? 'pc';
@@ -59,13 +59,11 @@
         class="group hover:bg-primary/3 transition-colors"
         x-data="{
           locked: {{ $isLocked ? 'true' : 'false' }},
-          cost: {{ $unitCost }},
           
           calcTotal() {
             let q = parseFloat(this.$refs.qi.value) || 0;
             let p = parseFloat(this.$refs.pi.value) || 0;
             this.$refs.ti.value = (Math.round(q * p * 100) / 100).toFixed(2);
-            this.updateProfit(q, p);
           },
           
           calcReverse() {
@@ -75,23 +73,13 @@
               if (p > 0) {
                 let q = Math.round((t / p) * 1000) / 1000;
                 this.$refs.qi.value = (q % 1 === 0 ? q : q.toFixed(3));
-                this.updateProfit(q, p);
               }
             } else {
               let q = parseFloat(this.$refs.qi.value) || 0;
               if (q > 0) {
                 let p = Math.round((t / q) * 100) / 100;
                 this.$refs.pi.value = p.toFixed(2);
-                this.updateProfit(q, p);
               }
-            }
-          },
-
-          updateProfit(q, p) {
-            if (this.cost > 0 && this.$refs.profitLabel) {
-              let pr = Math.round((p - this.cost) * q);
-              this.$refs.profitLabel.innerText = pr >= 0 ? '+৳' + pr : '-৳' + Math.abs(pr);
-              this.$refs.profitLabel.className = pr >= 0 ? 'text-success/60' : 'text-error/60';
             }
           }
         }">
@@ -105,34 +93,48 @@
               @if($item['variant_name'] && $item['variant_name'] !== $item['name'])
                 <span>· {{ $item['variant_name'] }}</span>
               @endif
-              @if(($item['purchase_price'] ?? 0) > 0)
-                · <span x-ref="profitLabel" class="{{ $profit >= 0 ? 'text-success/60' : 'text-error/60' }}">{{ $profit >= 0 ? '+' : '' }}৳{{ number_format($profit, 0) }}</span>
+              @if($baseCost > 0)
+                <span>· Cost: ৳{{ number_format($unitCost, 2) }}/{{ $item['unit_name'] }}</span>
+                <span class="{{ $profit >= 0 ? 'text-success/60' : 'text-error/60' }}"> · Profit: {{ $profit >= 0 ? '+' : '' }}৳{{ number_format($profit, 0) }}</span>
+              @else
+                <span class="text-warning/60">· Cost not set</span>
               @endif
             </p>
           </div>
           
-          {{-- Batch --}}
-          @if(count($item['available_batches'] ?? []) > 0)
-            <div class="shrink-0 w-28">
-              <select wire:change="selectBatch({{ $i }}, $event.target.value)"
-                class="select select-xs w-full text-[9px] h-6 min-h-0 py-0 px-1 bg-base-200/60 border-base-300 rounded
-                  {{ $item['batch_id'] ? 'text-primary border-primary/30' : '' }}">
-                @if(count($item['available_batches']) > 1)
-                  <option value="">{{ __('Select Batch...') }}</option>
+          {{-- Batch Info (auto-selected or chosen) --}}
+          @if($item['batch_id'])
+            <div class="shrink-0 w-36">
+              <div class="flex flex-col gap-1">
+                @if(count($this->getAvailableBatches($item['variant_id'], $i)) > 1)
+                  {{-- Multiple batches: allow switching but highlight stock --}}
+                  <select wire:change="selectBatch({{ $i }}, $event.target.value)"
+                    class="select select-xs w-full text-[9px] h-6 min-h-0 py-0 px-1.5 bg-primary/5 border-primary/20 rounded-lg text-primary font-bold">
+                    @foreach($this->getAvailableBatches($item['variant_id'], $i) as $batch)
+                       <option value="{{ $batch['id'] }}" {{ $item['batch_id'] == $batch['id'] ? 'selected' : '' }}>
+                        {{ $batch['batch_number'] }} ({{ number_format($batch['current_stock'], 2) }}{{ $baseUnitName }})
+                      </option>
+                    @endforeach
+                  </select>
+                @else
+                  {{-- Fixed batch (often the result of a split) --}}
+                  <div class="flex items-center justify-between px-2 py-0.5 bg-primary/8 border border-primary/20 rounded-lg text-[9px] text-primary h-6">
+                    <span class="font-bold truncate max-w-[60px]">{{ $item['batch_number'] }}</span>
+                    <span class="opacity-50 font-mono">{{ number_format($item['batch_stock'] ?? 0, 2) }}{{ $baseUnitName }}</span>
+                  </div>
                 @endif
-                @foreach($item['available_batches'] as $batch)
-                  @php
-                    $stockStr = number_format($batch['current_stock'], 0) . ' ' . $baseUnitName;
-                    if($convRate != 1) {
-                        $unitStock = floor($batch['current_stock'] / $convRate);
-                        $stockStr .= ' · ' . $unitStock . ' ' . $item['unit_name'];
-                    }
-                  @endphp
-                  <option value="{{ $batch['id'] }}" {{ $item['batch_id'] == $batch['id'] ? 'selected' : '' }} title="{{ $stockStr }}">
-                    {{ $batch['batch_number'] }} ({{ $stockStr }}{{ $batch['is_expired'] ? ' ⚠' : '' }})
-                  </option>
-                @endforeach
-              </select>
+
+                {{-- Expiry warning if applicable --}}
+                @php
+                  $batchData = collect($item['available_batches'])->firstWhere('id', $item['batch_id']);
+                @endphp
+                @if($batchData['is_expired'] ?? false)
+                   <div class="flex items-center gap-1 text-[8px] text-error font-bold px-1 uppercase">
+                     <x-icon name="o-exclamation-triangle" class="w-2.5 h-2.5" />
+                     {{ __('Expired') }}
+                   </div>
+                @endif
+              </div>
             </div>
           @endif
 
