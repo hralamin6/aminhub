@@ -336,15 +336,11 @@
           @if($lastSale->due_amount > 0)
             <div class="flex justify-between text-red-600"><span>{{ __('Due') }}</span><span class="font-bold">{{ number_format($lastSale->due_amount, 2) }}</span></div>
           @endif
-          {{-- Internal profit line — shown on screen only, not printed --}}
-          @php
-            $receiptCost = $lastSale->items->sum(fn($si) => ($si->variant->purchase_price ?? 0) * $si->quantity);
-            $receiptProfit = max(0, $lastSale->grand_total - $receiptCost);
-          @endphp
-          @if($receiptProfit > 0)
+          {{-- Profit from database --}}
+          @if($lastSale->total_profit > 0)
             <div class="flex justify-between text-green-700 border-t border-dashed border-gray-200 pt-1 no-print">
-              <span>{{ __('Est. Profit') }}</span>
-              <span class="font-bold">+{{ number_format($receiptProfit, 2) }}</span>
+              <span>{{ __('Profit') }}</span>
+              <span class="font-bold">+{{ number_format($lastSale->total_profit, 2) }}</span>
             </div>
           @endif
         </div>
